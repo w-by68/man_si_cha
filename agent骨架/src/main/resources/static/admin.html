@@ -1,0 +1,2628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>漫思茶 · 运营管理后台</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1b17; --bg2: #16281f; --bg3: #1d3328;
+    --line: rgba(255,255,255,.08); --line2: rgba(255,255,255,.14);
+    --fg: #e8f0ea; --dim: #9fb8a8; --dim2: #7d9488;
+    --accent: #8fd694; --accent2: #2f6e46;
+    --warn: #e8c07d; --err: #e88b8b; --info: #8fc3e8;
+  }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: linear-gradient(160deg, var(--bg) 0%, var(--bg2) 55%, var(--bg3) 100%);
+    color: var(--fg); min-height: 100vh; display: flex; flex-direction: column;
+    font-size: 14px;
+  }
+  header {
+    padding: 16px 24px 12px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 19px; font-weight: 700; letter-spacing: 1px; color: #d8e8c8; }
+  header .sub { font-size: 12px; color: var(--dim); }
+  #health { margin-left: auto; display: flex; gap: 8px; font-size: 11px; }
+  .badge { padding: 3px 10px; border-radius: 10px; background: rgba(255,255,255,.07);
+           border: 1px solid var(--line2); color: #b9cdbf; }
+  .badge b { color: var(--accent); font-weight: 600; }
+  .badge.bad b { color: var(--err); }
+
+  nav { display: flex; gap: 4px; padding: 10px 24px 0; border-bottom: 1px solid var(--line); }
+  nav button {
+    padding: 9px 18px; border: none; background: transparent; color: var(--dim);
+    font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent;
+    font-family: inherit; transition: color .15s;
+  }
+  nav button:hover { color: var(--fg); }
+  nav button.on { color: var(--accent); border-bottom-color: var(--accent); }
+
+  main { flex: 1; padding: 20px 24px 40px; overflow-y: auto; }
+  .page { display: none; }
+  .page.on { display: block; }
+
+  /* 指标卡 */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .card {
+    background: rgba(255,255,255,.045); border: 1px solid var(--line);
+    border-radius: 10px; padding: 14px 16px;
+  }
+  .card .k { font-size: 11px; color: var(--dim2); margin-bottom: 8px; letter-spacing: .5px; }
+  .card .v { font-size: 24px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .card .v small { font-size: 12px; color: var(--dim); font-weight: 400; margin-left: 3px; }
+  .card .note { font-size: 10px; color: var(--dim2); margin-top: 6px; }
+
+  /* 区块 */
+  .block { background: rgba(255,255,255,.035); border: 1px solid var(--line);
+           border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .block h3 { font-size: 13px; color: #c8dcc8; margin-bottom: 12px; font-weight: 600;
+              display: flex; align-items: center; gap: 8px; }
+  .block h3 .hint { font-size: 11px; color: var(--dim2); font-weight: 400; }
+  .scroll-x { overflow-x: auto; }
+
+  /* 表格 */
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; padding: 8px 10px; color: var(--dim2); font-weight: 500;
+       border-bottom: 1px solid var(--line2); font-size: 11px; white-space: nowrap; }
+  td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.04); }
+  tbody tr:hover { background: rgba(255,255,255,.03); }
+  td.num { font-variant-numeric: tabular-nums; font-family: Consolas, monospace; white-space: nowrap; }
+  .mono { font-family: Consolas, monospace; font-size: 11.5px; color: var(--dim); }
+  .lbl { font-size: 12px; color: var(--dim2); }
+  /* 深色背景下原生 checkbox 几乎不可见，统一改成 accent-color + 尺寸 */
+  #modal-body input[type="checkbox"] {
+    width: 15px; height: 15px; accent-color: #2f6e46; cursor: pointer;
+    vertical-align: -2px; margin-right: 5px;
+  }
+  #modal-body input[type="date"],
+  #modal-body input[type="datetime-local"] { color-scheme: dark; }
+  #modal-body input[type="date"]::-webkit-calendar-picker-indicator,
+  #modal-body input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(.8); cursor: pointer; }
+
+  /* 标签 */
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 11px; }
+  .tag.ok { background: rgba(143,214,148,.14); color: var(--accent); }
+  .tag.warn { background: rgba(232,192,125,.14); color: var(--warn); }
+  .tag.err { background: rgba(232,139,139,.14); color: var(--err); }
+  .tag.info { background: rgba(143,195,232,.14); color: var(--info); }
+  .tag.mute { background: rgba(255,255,255,.07); color: var(--dim2); }
+
+  /* 柱状条 */
+  .bar { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+  .bar .label { width: 150px; font-size: 12px; color: var(--dim); text-align: right; flex-shrink: 0;
+                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar .track { flex: 1; height: 18px; background: rgba(255,255,255,.05); border-radius: 4px; overflow: hidden; }
+  .bar .fill { height: 100%; background: linear-gradient(90deg, #2f6e46, #8fd694); border-radius: 4px;
+               transition: width .4s ease; }
+  .bar .val { width: 110px; font-size: 11.5px; color: var(--dim); font-variant-numeric: tabular-nums;
+              font-family: Consolas, monospace; }
+
+  /* 按钮 */
+  button.btn {
+    padding: 7px 14px; border-radius: 7px; border: 1px solid var(--line2);
+    background: rgba(255,255,255,.07); color: var(--fg); cursor: pointer; font-size: 12px;
+    font-family: inherit; transition: background .15s;
+  }
+  button.btn:hover { background: rgba(255,255,255,.12); }
+  button.btn.primary { background: var(--accent2); border-color: var(--accent2); color: #fff; }
+  button.btn.primary:hover { background: #3a8455; }
+  button.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  .empty { text-align: center; padding: 30px; color: var(--dim2); font-size: 12px; }
+  .loading { text-align: center; padding: 30px; color: var(--dim); font-size: 12px; }
+  .err-box { padding: 14px; background: rgba(232,139,139,.1); border: 1px solid rgba(232,139,139,.3);
+             border-radius: 8px; color: var(--err); font-size: 12.5px; }
+
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .toolbar .spacer { flex: 1; }
+
+  /* 双列布局 */
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 1100px) { .cols { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>漫思茶 · 运营管理后台</h1>
+  <span class="sub">Agent 观测 / RAG 评测 / 知识库 · 数据实时读取 db_agent</span>
+  <div id="health">
+    <span class="badge">agent-service <b id="st-agent">…</b></span>
+    <span class="badge">模型 <b id="st-model">…</b></span>
+    <span class="badge" id="whoami" title="当前登录账号">…</span>
+    <button class="badge" id="btn-logout" style="cursor:pointer;border:1px solid var(--line2);
+            background:rgba(255,255,255,.07);color:#b9cdbf;font-family:inherit"
+            title="退出登录">退出</button>
+  </div>
+</header>
+
+<nav>
+  <button data-page="dash" class="on">仪表盘</button>
+  <button data-page="order">订单</button>
+  <button data-page="product">商品</button>
+  <button data-page="know">知识库</button>
+  <button data-page="eval">RAG 评测</button>
+  <button data-page="trace">链路追踪</button>
+  <button data-page="tool">工具审计</button>
+  <button data-page="lab">检索测试台</button>
+  <button data-page="session">会话时间线</button>
+  <button data-page="review">评价</button>
+  <button data-page="moment">茶友圈</button>
+  <button data-page="points">积分</button>
+  <button data-page="coupon">优惠券</button>
+  <button data-page="model">模型</button>
+  <button data-page="support">客服</button>
+</nav>
+
+<main>
+  <!-- ==================== 仪表盘 ==================== -->
+  <section id="page-dash" class="page on">
+    <div id="dash-cards" class="cards"><div class="loading">加载中…</div></div>
+
+    <div class="cols">
+      <div class="block">
+        <h3>近 7 日趋势 <span class="hint">调用量 / 成本</span></h3>
+        <div id="dash-trend"><div class="loading">加载中…</div></div>
+      </div>
+      <div class="block">
+        <h3>意图分布 <span class="hint">agent_trace.intent</span></h3>
+        <div id="dash-intents"><div class="loading">加载中…</div></div>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="block">
+        <h3>工具调用排行 <span class="hint">Top 10</span></h3>
+        <div id="dash-tools"><div class="loading">加载中…</div></div>
+      </div>
+      <div class="block">
+        <h3>阶段耗时 <span class="hint">按 span_name 聚合</span></h3>
+        <div id="dash-spans"><div class="loading">加载中…</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 订单 ==================== -->
+  <section id="page-order" class="page">
+    <div class="block">
+      <div class="toolbar">
+        <h3 style="margin:0">订单管理 <span class="hint" id="order-summary"></span></h3>
+        <div class="spacer"></div>
+        <input id="order-kw" class="btn" style="width:180px;padding:7px 10px" placeholder="订单号 / 昵称 / 手机">
+        <select id="order-status" class="btn" style="padding:7px 10px">
+          <option value="">全部状态</option>
+          <option value="unpaid">待付款</option>
+          <option value="unship">待发货</option>
+          <option value="unreceive">待收货</option>
+          <option value="unreview">待评价</option>
+          <option value="completed">已完成</option>
+          <option value="cancelled">已取消</option>
+        </select>
+        <button class="btn" id="order-search">查询</button>
+        <button class="btn" id="order-prev">上一页</button>
+        <span id="order-pageinfo" class="mono">-</span>
+        <button class="btn" id="order-next">下一页</button>
+      </div>
+      <div id="order-tabs" style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap"></div>
+      <div class="scroll-x"><div id="order-list"><div class="loading">加载中…</div></div></div>
+    </div>
+  </section>
+
+  <!-- ==================== 商品 ==================== -->
+  <section id="page-product" class="page">
+    <div class="block">
+      <div class="toolbar">
+        <h3 style="margin:0">商品管理 <span class="hint" id="product-summary"></span></h3>
+        <div class="spacer"></div>
+        <input id="prod-kw" class="btn" style="width:150px;padding:7px 10px" placeholder="商品名 / 产地">
+        <select id="prod-shop" class="btn" style="padding:7px 10px"><option value="">全部店铺</option></select>
+        <select id="prod-cat" class="btn" style="padding:7px 10px"><option value="">全部分类</option></select>
+        <select id="prod-low" class="btn" style="padding:7px 10px">
+          <option value="">全部库存</option>
+          <option value="1">库存告警 (&lt;10)</option>
+        </select>
+        <button class="btn" id="prod-search">查询</button>
+        <button class="btn primary" id="prod-new">+ 新建商品</button>
+        <button class="btn" id="prod-prev">上一页</button>
+        <span id="prod-pageinfo" class="mono">-</span>
+        <button class="btn" id="prod-next">下一页</button>
+      </div>
+      <div class="scroll-x"><div id="product-list"><div class="loading">加载中…</div></div></div>
+    </div>
+  </section>
+
+  <!-- ==================== 知识库 ==================== -->
+  <section id="page-know" class="page">
+    <div class="block">
+      <div class="toolbar">
+        <h3 style="margin:0">知识文档 <span class="hint" id="know-summary"></span></h3>
+        <div class="spacer"></div>
+        <button class="btn primary" id="btn-rebuild">重建向量索引</button>
+      </div>
+      <div class="scroll-x"><div id="know-list"><div class="loading">加载中…</div></div></div>
+    </div>
+
+    <div class="block">
+      <div class="toolbar">
+        <h3 style="margin:0">知识块管理 <span class="hint" id="chunk-summary"></span></h3>
+        <div class="spacer"></div>
+        <select id="chunk-doc" class="btn" style="padding:7px 10px"><option value="">全部文档</option></select>
+        <input id="chunk-kw" class="btn" style="width:150px;padding:7px 10px" placeholder="搜索内容">
+        <button class="btn" id="chunk-search">查询</button>
+        <button class="btn primary" id="chunk-add">新增知识块</button>
+        <button class="btn" id="chunk-prev">上一页</button>
+        <span id="chunk-pageinfo" class="mono">-</span>
+        <button class="btn" id="chunk-next">下一页</button>
+      </div>
+      <div id="chunk-rebuild-hint"></div>
+      <div class="scroll-x"><div id="chunk-list"><div class="loading">加载中…</div></div></div>
+    </div>
+
+    <div class="block">
+      <h3>知识块长度分布 <span class="hint">用于判断切分是否均衡</span></h3>
+      <div id="know-len"><div class="loading">加载中…</div></div>
+    </div>
+  </section>
+
+  <!-- ==================== RAG 评测 ==================== -->
+  <section id="page-eval" class="page">
+    <div class="block">
+      <h3>四路检索消融 <span class="hint">Recall@5 · hit-rate 口径（期望块任一命中即算命中）</span></h3>
+      <div class="scroll-x"><div id="eval-runs"><div class="loading">加载中…</div></div></div>
+    </div>
+
+    <div class="cols">
+      <div class="block">
+        <h3>按问题类型拆解 <span class="hint">hybrid 路线</span></h3>
+        <div id="eval-cat"><div class="loading">加载中…</div></div>
+      </div>
+      <div class="block">
+        <h3>评测集概况</h3>
+        <div id="eval-meta"><div class="loading">加载中…</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 链路追踪 ==================== -->
+  <section id="page-trace" class="page">
+    <div class="block">
+      <div class="toolbar">
+        <h3 style="margin:0">Agent 链路追踪</h3>
+        <div class="spacer"></div>
+        <select id="trace-span" class="btn" style="padding:7px 10px">
+          <option value="">全部阶段</option>
+          <option value="agent.run">agent.run</option>
+          <option value="rag.retrieve">rag.retrieve</option>
+          <option value="llm.chat">llm.chat</option>
+        </select>
+        <button class="btn" id="trace-prev">上一页</button>
+        <span id="trace-pageinfo" class="mono">-</span>
+        <button class="btn" id="trace-next">下一页</button>
+      </div>
+      <div class="scroll-x"><div id="trace-list"><div class="loading">加载中…</div></div></div>
+    </div>
+  </section>
+  <!-- ==================== 工具审计 ==================== -->
+  <section id="page-tool" class="page">
+    <div class="block">
+      <div class="toolbar">
+        <h3 style="margin:0">工具调用审计 <span class="hint" id="tool-summary"></span></h3>
+        <div class="spacer"></div>
+        <select id="tool-name" class="btn" style="padding:7px 10px"><option value="">全部工具</option></select>
+        <select id="tool-filter" class="btn" style="padding:7px 10px">
+          <option value="">全部调用</option>
+          <option value="failed">仅失败</option>
+          <option value="write">仅写操作</option>
+        </select>
+        <button class="btn" id="tool-search">查询</button>
+        <button class="btn" id="tool-prev">上一页</button>
+        <span id="tool-pageinfo" class="mono">-</span>
+        <button class="btn" id="tool-next">下一页</button>
+      </div>
+      <div class="scroll-x"><div id="tool-list"><div class="loading">加载中…</div></div></div>
+    </div>
+
+    <div class="block">
+      <h3>按工具统计 <span class="hint">成功率低于 90% 标黄</span></h3>
+      <div class="scroll-x"><div id="tool-stats"><div class="loading">加载中…</div></div></div>
+    </div>
+  </section>
+
+  <!-- ==================== 检索测试台 ==================== -->
+  <section id="page-lab" class="page">
+    <div class="block">
+      <h3>检索质量对比 <span class="hint">同一问题，四种策略各召回什么</span></h3>
+      <div style="display:flex;gap:10px;margin-bottom:14px">
+        <input id="lab-q" placeholder="输入一个问题，如：冬天适合喝什么茶？"
+               style="flex:1;padding:11px 14px;border-radius:9px;border:1px solid var(--line2);
+                      background:rgba(255,255,255,.06);color:var(--fg);font-size:14px;
+                      font-family:inherit;outline:none">
+        <button class="btn primary" id="lab-run" style="padding:11px 24px">检索</button>
+      </div>
+      <div id="lab-samples" style="margin-bottom:16px"></div>
+      <div id="lab-result"></div>
+    </div>
+  </section>
+
+  <!-- ==================== 会话时间线 ==================== -->
+  <section id="page-session" class="page">
+    <div class="block">
+      <div class="toolbar">
+        <h3 style="margin:0">会话时间线 <span class="hint" id="sess-summary"></span></h3>
+        <div class="spacer"></div>
+        <input id="sess-id" class="btn" style="width:230px;padding:7px 10px"
+               placeholder="输入 sessionId">
+        <button class="btn primary" id="sess-load">查看</button>
+      </div>
+      <div id="sess-list" style="margin-bottom:16px"></div>
+      <div id="sess-timeline"></div>
+    </div>
+  </section>
+
+  <!-- ==================== 客服配置 ==================== -->
+  <section id="page-support" class="page">
+    <div class="block">
+      <h3>客服配置 <span class="hint">小程序「客服帮助」弹窗读取这里的内容</span></h3>
+      <div id="support-form"><div class="loading">加载中…</div></div>
+    </div>
+  </section>
+
+  <!-- ==================== 模型 ==================== -->
+  <section id="page-model" class="page">
+    <div class="block">
+      <h3>当前模型</h3>
+      <div id="model-current"><div class="loading">加载中…</div></div>
+    </div>
+
+    <div class="block">
+      <h3>切换模型 <span class="hint">仅列出支持 Function Calling 的模型</span></h3>
+      <div style="font-size:12px;color:var(--dim2);line-height:1.8;margin-bottom:14px">
+        本 Agent 依赖工具调用（下单、查订单、加购），切换不支持 Function Calling 的模型会让整条工具链失效，
+        因此列表里只保留 <code>supports_tool_call=true</code> 的模型。<br>
+        切换写入 Redis，所有实例共享；本实例立即生效，其它实例在 5 秒缓存过期后生效。
+      </div>
+      <div id="model-presets"><div class="loading">加载中…</div></div>
+    </div>
+  </section>
+
+  <!-- ==================== 评价 ==================== -->
+  <section id="page-review" class="page">
+    <div class="block">
+      <div class="toolbar">
+        <h3 style="margin:0">商品评价 <span class="hint" id="review-summary"></span></h3>
+        <div class="spacer"></div>
+        <select id="review-status" class="btn" style="padding:7px 10px">
+          <option value="">全部状态</option>
+          <option value="pending">待审核</option>
+          <option value="approved">已通过</option>
+          <option value="rejected">已拒绝</option>
+        </select>
+        <select id="review-rating" class="btn" style="padding:7px 10px">
+          <option value="">全部评分</option>
+          <option value="5">5 星</option><option value="4">4 星</option>
+          <option value="3">3 星</option><option value="2">2 星</option><option value="1">1 星</option>
+        </select>
+        <button class="btn" id="review-search">查询</button>
+        <button class="btn" id="review-prev">上一页</button>
+        <span id="review-pageinfo" class="mono">-</span>
+        <button class="btn" id="review-next">下一页</button>
+      </div>
+      <div class="scroll-x"><div id="review-list"><div class="loading">加载中…</div></div></div>
+    </div>
+  </section>
+
+  <!-- ==================== 茶友圈 ==================== -->
+  <section id="page-moment" class="page">
+    <div class="block">
+      <div class="toolbar">
+        <h3 style="margin:0">茶友圈动态 <span class="hint" id="moment-summary"></span></h3>
+        <div class="spacer"></div>
+        <input id="moment-kw" class="btn" style="width:170px;padding:7px 10px" placeholder="内容 / 昵称">
+        <button class="btn" id="moment-search">查询</button>
+        <button class="btn" id="moment-prev">上一页</button>
+        <span id="moment-pageinfo" class="mono">-</span>
+        <button class="btn" id="moment-next">下一页</button>
+      </div>
+      <div class="scroll-x"><div id="moment-list"><div class="loading">加载中…</div></div></div>
+    </div>
+  </section>
+
+  <!-- ==================== 积分 ==================== -->
+  <section id="page-points" class="page">
+    <div class="block">
+      <h3>积分概况 <span class="hint">按来源类型统计</span></h3>
+      <div id="points-summary"><div class="loading">加载中…</div></div>
+    </div>
+    <div class="block">
+      <div class="toolbar">
+        <h3 style="margin:0">积分流水 <span class="hint" id="points-count"></span></h3>
+        <div class="spacer"></div>
+        <select id="points-type" class="btn" style="padding:7px 10px">
+          <option value="">全部类型</option>
+          <option value="order">订单</option><option value="review">评价</option>
+          <option value="sign">签到</option><option value="share">分享</option>
+          <option value="manual">手工调整</option>
+        </select>
+        <button class="btn" id="points-search">查询</button>
+        <button class="btn" id="points-prev">上一页</button>
+        <span id="points-pageinfo" class="mono">-</span>
+        <button class="btn" id="points-next">下一页</button>
+      </div>
+      <div class="scroll-x"><div id="points-list"><div class="loading">加载中…</div></div></div>
+    </div>
+    <div class="block">
+      <h3>用户积分排行 <span class="hint">Top 20</span></h3>
+      <div class="scroll-x"><div id="points-users"><div class="loading">加载中…</div></div></div>
+    </div>
+  </section>
+
+  <!-- ==================== 优惠券 ==================== -->
+  <section id="page-coupon" class="page">
+    <div class="block">
+      <div class="toolbar">
+        <h3 style="margin:0">优惠券模板 <span class="hint" id="coupon-summary"></span></h3>
+        <div class="spacer"></div>
+        <button class="btn primary" id="coupon-new">+ 新建优惠券</button>
+        <button class="btn" id="coupon-prev">上一页</button>
+        <span id="coupon-pageinfo" class="mono">-</span>
+        <button class="btn" id="coupon-next">下一页</button>
+      </div>
+      <div class="scroll-x"><div id="coupon-list"><div class="loading">加载中…</div></div></div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+const API = '';   // 同源，直接相对路径
+
+// 当前登录身份。由 boot() 从 localStorage 与 auth-status 读取
+let CURRENT_ROLE = localStorage.getItem('adminRole') || 'admin';
+const isReadOnly = () => CURRENT_ROLE !== 'admin';
+
+/**
+ * 页面内输入框。返回 Promise<string|null>（取消返回 null）。
+ *
+ * 替代原生 prompt：后者是同步模态，会冻结整个 JS 事件循环，
+ * 页面停止渲染、所有请求挂起——本项目已在这上面栽过（alert 那次）。
+ */
+function askInput(label, defaultValue = '', title = '请输入', placeholder = '') {
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:300;'
+      + 'display:flex;align-items:center;justify-content:center;padding:30px';
+    wrap.innerHTML = `<div style="background:#16281f;border:1px solid rgba(255,255,255,.15);
+        border-radius:12px;padding:22px;max-width:380px;width:100%">
+        <div style="font-size:14px;color:#c8dcc8;margin-bottom:12px;font-weight:600">${esc(title)}</div>
+        <div style="font-size:12px;color:var(--dim2);margin-bottom:8px">${esc(label)}</div>
+        <input id="ai-input" class="btn" style="width:100%;padding:10px;font-size:14px"
+               value="${esc(defaultValue)}" placeholder="${esc(placeholder)}">
+        <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn" data-ans="cancel">取消</button>
+          <button class="btn primary" data-ans="ok">确定</button>
+        </div></div>`;
+    document.body.appendChild(wrap);
+    const inp = wrap.querySelector('#ai-input');
+    inp.focus(); inp.select();
+    const finish = (v) => { wrap.remove(); resolve(v); };
+    wrap.querySelectorAll('button[data-ans]').forEach(b => {
+      b.onclick = () => finish(b.dataset.ans === 'ok' ? inp.value : null);
+    });
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') finish(inp.value);
+      if (e.key === 'Escape') finish(null);
+    });
+    wrap.addEventListener('click', e => { if (e.target === wrap) finish(null); });
+  });
+}
+
+/** 只读角色隐藏写操作按钮（后端仍会拦，这只是避免点了才报错） */
+function hideIfReadOnly(selector) {
+  if (!isReadOnly()) return;
+  document.querySelectorAll(selector).forEach(el => el.style.display = 'none');
+}
+
+// ---------- 工具函数 ----------
+const $ = (id) => document.getElementById(id);
+const fmt = (n) => (n === null || n === undefined) ? '-' : Number(n).toLocaleString('zh-CN');
+const fmtMoney = (n) => (n === null || n === undefined) ? '-' : '¥' + Number(n).toFixed(4);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// 登录令牌：登录页写入 localStorage，这里统一附加到请求头
+function authHeaders(extra) {
+  const t = localStorage.getItem('adminToken');
+  return t ? { ...(extra || {}), 'X-Admin-Token': t } : (extra || {});
+}
+
+/** 401 说明令牌失效，跳回登录页；其它错误照常抛出由调用方展示 */
+function handleAuth(resp) {
+  if (resp.status === 401) {
+    localStorage.removeItem('adminToken');
+    location.href = '/admin-login.html';
+    throw new Error('登录已过期，正在跳转登录页');
+  }
+}
+
+/**
+ * 读取响应体：先取文本再尝试 JSON。
+ *
+ * 为什么要这么麻烦：后端失败时返回的是 {ok:false, code, error}，
+ * 旧实现直接 `throw new Error(path + ' → HTTP ' + status)` 把这句最有用的话丢了，
+ * 运营在页面上只看到「HTTP 409」，完全不知道是被引用挡住还是服务挂了。
+ */
+async function readBody(r) {
+  let text = '';
+  try { text = await r.text(); } catch (e) { return null; }
+  if (!text) return null;
+  try { return JSON.parse(text); } catch (e) { return text; }
+}
+
+/** 用后端的 error 文案构造异常，并把 status / payload 挂上去供调用方分支处理。 */
+function httpError(path, r, body) {
+  const msg = (body && typeof body === 'object' && body.error)
+    ? body.error
+    : `${path} → HTTP ${r.status}`;
+  const err = new Error(msg);
+  err.status = r.status;
+  err.payload = body;
+  return err;
+}
+
+async function get(path) {
+  const r = await fetch(API + path, { headers: authHeaders() });
+  handleAuth(r);
+  const body = await readBody(r);
+  if (!r.ok) throw httpError(path, r, body);
+  return (body && typeof body === 'object') ? body : {};
+}
+async function post(path, body) {
+  const r = await fetch(API + path, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  handleAuth(r);
+  const payload = await readBody(r);
+  if (!r.ok) throw httpError(path, r, payload);
+  return (payload && typeof payload === 'object') ? payload : {};
+}
+function showErr(el, e) {
+  el.innerHTML = `<div class="err-box">加载失败：${esc(e.message || e)}<br>
+    <span style="color:var(--dim2);font-size:11.5px">请确认 agent-service(8081) 正在运行</span></div>`;
+}
+
+// ---------- 导航 ----------
+document.querySelectorAll('nav button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('on'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+    btn.classList.add('on');
+    $('page-' + btn.dataset.page).classList.add('on');
+    const loaders = { dash: loadDash, order: () => loadOrders(1), product: () => loadProducts(1),
+                      know: loadKnow, eval: loadEval, trace: () => loadTrace(1), tool: () => loadToolCalls(1), lab: initLab, session: initSession, model: initModel, support: loadSupportConfig,
+                      review: () => loadReviews(1), moment: () => loadMoments(1),
+                      points: () => loadPoints(1), coupon: () => loadCoupons(1) };
+    loaders[btn.dataset.page]?.();
+  };
+});
+
+// ---------- 健康状态 ----------
+async function checkHealth() {
+  try {
+    const info = await get('/api/agent/llm-info');
+    $('st-agent').textContent = '在线';
+    $('st-model').textContent = info.model || '-';
+    $('st-agent').parentElement.classList.remove('bad');
+    return info;
+  } catch (e) {
+    $('st-agent').textContent = '离线';
+    $('st-model').textContent = '-';
+    $('st-agent').parentElement.classList.add('bad');
+    return null;
+  }
+}
+
+// ---------- 仪表盘 ----------
+function renderCards(c) {
+  const items = [
+    { k: '今日对话数', v: fmt(c.tracesToday), note: 'agent_trace 当日记录数' },
+    { k: '知识块总数', v: fmt(c.chunks), note: `${fmt(c.documents)} 篇文档` },
+    { k: '工具调用数', v: fmt(c.toolCalls), note: `今日 ${fmt(c.toolCallsToday)} 次` },
+    { k: '累计调用', v: fmt(c.traces), note: 'agent_trace 总记录数' },
+    { k: '累计成本', v: fmtMoney(c.totalCost), note: '按固定单价估算' },
+    { k: '平均延迟', v: fmt(c.avgLatency), note: '毫秒 / 单次调用' },
+  ];
+  return items.map(i => `
+    <div class="card">
+      <div class="k">${esc(i.k)}</div>
+      <div class="v">${i.v}</div>
+      <div class="note">${esc(i.note)}</div>
+    </div>`).join('');
+}
+
+function renderBars(rows, labelKey, valueKey, extra) {
+  if (!rows || !rows.length) return '<div class="empty">暂无数据</div>';
+  const max = Math.max(...rows.map(r => Number(r[valueKey]) || 0)) || 1;
+  return rows.map(r => {
+    const v = Number(r[valueKey]) || 0;
+    const pct = Math.max(2, (v / max) * 100);
+    return `
+      <div class="bar">
+        <div class="label" title="${esc(r[labelKey])}">${esc(r[labelKey])}</div>
+        <div class="track"><div class="fill" style="width:${pct}%"></div></div>
+        <div class="val">${fmt(v)}${extra ? ' · ' + extra(r) : ''}</div>
+      </div>`;
+  }).join('');
+}
+
+async function loadDash() {
+  $('dash-cards').innerHTML = '<div class="loading">加载中…</div>';
+  try {
+    const d = await get('/api/admin/overview');
+    $('dash-cards').innerHTML = renderCards(d.cards);
+
+    // 趋势：表格化展示（无第三方图表库依赖）
+    const trend = d.trend || [];
+    if (!trend.length) {
+      $('dash-trend').innerHTML =
+        '<div class="empty">近 7 日无调用记录<br>' +
+        '<span style="font-size:11px">最新一条数据为 ' +
+        (d.cards.latestTraceAt ? String(d.cards.latestTraceAt).slice(0, 16).replace('T', ' ') : '无') +
+        '；服务重启后发一次对话即可看到新数据</span></div>';
+    } else {
+      const maxCalls = Math.max(...trend.map(t => Number(t.calls) || 0)) || 1;
+      $('dash-trend').innerHTML = trend.map(t => `
+        <div class="bar">
+          <div class="label">${esc(String(t.d).slice(5))}</div>
+          <div class="track"><div class="fill" style="width:${Math.max(2, (Number(t.calls)/maxCalls)*100)}%"></div></div>
+          <div class="val">${fmt(t.calls)} 次 · ${fmtMoney(t.cost)}</div>
+        </div>`).join('');
+    }
+
+    const intents = d.intents || [];
+    const allUnknown = intents.length === 1 && intents[0].intent === '未识别';
+    $('dash-intents').innerHTML = renderBars(intents, 'intent', 'c') +
+      (allUnknown ? '<div style="margin-top:10px;font-size:11px;color:var(--dim2);line-height:1.7">' +
+        '历史数据产生于 v1.1 之前，当时未写 intent 字段。<br>修复后新产生的对话会按意图归类。</div>' : '');
+    $('dash-tools').innerHTML = renderBars(d.tools || [], 'tool_name', 'c',
+      r => `${fmt(r.avg_ms)}ms`);
+
+    const spans = d.spans || [];
+    if (!spans.length) {
+      $('dash-spans').innerHTML = '<div class="empty">暂无阶段数据</div>';
+    } else {
+      const maxAvg = Math.max(...spans.map(s => Number(s.avg_ms) || 0)) || 1;
+      $('dash-spans').innerHTML = `
+        <table>
+          <thead><tr><th>阶段</th><th style="text-align:right">次数</th>
+            <th style="text-align:right">平均耗时</th><th style="text-align:right">最大耗时</th></tr></thead>
+          <tbody>${spans.map(s => {
+            const isMax = Number(s.avg_ms) === maxAvg && spans.length > 1;
+            return `<tr>
+              <td>${esc(s.span_name)}${isMax ? ' <span class="tag warn">瓶颈</span>' : ''}</td>
+              <td class="num" style="text-align:right">${fmt(s.c)}</td>
+              <td class="num" style="text-align:right;color:${isMax ? 'var(--warn)' : 'inherit'}">${fmt(s.avg_ms)} ms</td>
+              <td class="num" style="text-align:right">${fmt(s.max_ms)} ms</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>`;
+    }
+  } catch (e) {
+    showErr($('dash-cards'), e);
+  }
+}
+
+// ---------- 知识库 ----------
+async function loadKnow() {
+  $('know-list').innerHTML = '<div class="loading">加载中…</div>';
+  try {
+    const d = await get('/api/admin/knowledge');
+    const vp = d.vectorPoints;
+    const vpText = vp < 0 ? '向量库不可达' : `${vp} 个向量点`;
+    const mismatch = vp >= 0 && vp !== d.total;
+    $('know-summary').innerHTML =
+      `MySQL ${d.total} 个知识块 · Qdrant ${vpText}` +
+      (mismatch ? ` <span class="tag warn">两者不一致，建议重建索引</span>` : '');
+
+    const docs = d.documents || [];
+    if (!docs.length) {
+      $('know-list').innerHTML = '<div class="empty">知识库为空</div>';
+    } else {
+      const statusTag = (s) => {
+        const m = { pending: ['mute','待解析'], parsed: ['warn','已解析'],
+                    embedded: ['ok','已向量化'], failed: ['err','失败'] };
+        const [cls, txt] = m[s] || ['mute', s || '-'];
+        return `<span class="tag ${cls}">${txt}</span>`;
+      };
+      $('know-list').innerHTML = `
+        <table>
+          <thead><tr><th>ID</th><th>文档标题</th><th>来源</th>
+            <th style="text-align:right">声明块数</th><th style="text-align:right">实际块数</th>
+            <th>状态</th><th>更新时间</th></tr></thead>
+          <tbody>${docs.map(x => {
+            // 声明块数为 0 表示「从未回填」（历史数据），不算异常；只有两边都非 0 且不等才标红
+            const declared = Number(x.chunk_count);
+            const actual = Number(x.actual_chunks);
+            const mismatch = declared !== 0 && declared !== actual;
+            return `<tr>
+              <td class="num">${x.id}</td>
+              <td>${esc(x.title)}</td>
+              <td><span class="tag mute">${esc(x.source_type || '-')}</span></td>
+              <td class="num" style="text-align:right">${fmt(x.chunk_count)}</td>
+              <td class="num" style="text-align:right;color:${mismatch ? 'var(--warn)' : 'inherit'}">${fmt(x.actual_chunks)}</td>
+              <td>${statusTag(x.status)}</td>
+              <td class="mono">${esc(String(x.updated_at || '-').replace('T',' ').slice(0,19))}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>`;
+    }
+
+    const buckets = d.lengthBuckets || [];
+    $('know-len').innerHTML = renderBars(buckets, 'bucket', 'c', r => '块');
+
+    // 知识块列表同属本页，一并加载
+    loadChunks(1);
+  } catch (e) {
+    showErr($('know-list'), e);
+  }
+}
+
+$('btn-rebuild')?.addEventListener('click', async () => {
+  if (!(await askConfirm('将把 kb_chunk 全部知识块重新向量化并写入 Qdrant。\n126 块约需 8 秒，期间问答会短暂降级为 BM25。\n\n确认执行？'))) return;
+  const btn = $('btn-rebuild');
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = '重建中…';
+  try {
+    const r = await post('/api/admin/knowledge/rebuild');
+    toast(`重建完成\n成功：${r.ingested ?? '-'} 块\n失败：${r.failed ?? 0} 块\n耗时：${r.costMs ?? '-'} ms`);
+    loadKnow();
+  } catch (e) {
+    toast('重建失败：' + (e.message || e), 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = old;
+  }
+});
+
+// ---------- RAG 评测 ----------
+async function loadEval() {
+  $('eval-runs').innerHTML = '<div class="loading">加载中…</div>';
+  try {
+    const d = await get('/api/admin/eval');
+    const runs = d.runs || [];
+    if (!runs.length) {
+      $('eval-runs').innerHTML = '<div class="empty">暂无评测记录，请先执行 POST /api/agent/eval/recall</div>';
+    } else {
+      const NAME = {
+        bm25_only: 'BM25-only', vector_only: '向量-only',
+        hybrid_rrf_only: 'RRF-only', hybrid: '混合（RRF+重排）'
+      };
+      const maxR = Math.max(...runs.map(r => Number(r.recall_pct) || 0));
+      $('eval-runs').innerHTML = `
+        <table>
+          <thead><tr><th>策略</th><th style="text-align:right">Recall@5</th>
+            <th style="text-align:right">用例数</th><th style="text-align:right">命中</th>
+            <th style="text-align:right">平均耗时</th><th>最近运行</th></tr></thead>
+          <tbody>${runs.map(r => {
+            const isBest = Number(r.recall_pct) === maxR;
+            return `<tr>
+              <td><b>${esc(NAME[r.run_name] || r.run_name)}</b>
+                  ${isBest ? '<span class="tag ok" style="margin-left:6px">最优</span>' : ''}</td>
+              <td class="num" style="text-align:right;font-size:14px;color:${isBest ? 'var(--accent)' : 'inherit'}">
+                ${Number(r.recall_pct).toFixed(2)}%</td>
+              <td class="num" style="text-align:right">${fmt(r.cases)}</td>
+              <td class="num" style="text-align:right">${fmt(r.hits)}</td>
+              <td class="num" style="text-align:right">${fmt(r.avg_ms)} ms</td>
+              <td class="mono">${esc(String(r.last_run || '-').replace('T',' ').slice(0,19))}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+        <div style="margin-top:12px;font-size:11.5px;color:var(--dim2);line-height:1.8">
+          <b>结论</b>：BM25 单腿因中文口语提问与知识块用词不重叠而大量漏召；
+          引入向量召回与 RRF 融合后显著提升；向量重排进一步压掉 RRF 引入的关键词噪声。
+          注意：本库仅 126 块，向量腿已接近饱和，混合与纯向量打平——混合的价值体现在<b>鲁棒性</b>
+          （把最差单腿 75% 拉到 96%）而非超越。
+        </div>`;
+    }
+
+    const cats = d.byCategory || [];
+    if (!cats.length) {
+      $('eval-cat').innerHTML = '<div class="empty">评测集未标注 category</div>';
+    } else {
+      const minR = Math.min(...cats.map(c => Number(c.recall_pct) || 100));
+      $('eval-cat').innerHTML = `
+        <table><thead><tr><th>类型</th><th style="text-align:right">用例数</th>
+          <th style="text-align:right">Recall@5</th></tr></thead>
+        <tbody>${cats.map(c => {
+          const isMin = Number(c.recall_pct) === minR && cats.length > 1;
+          return `<tr>
+            <td>${esc(c.category)}</td>
+            <td class="num" style="text-align:right">${fmt(c.c)}</td>
+            <td class="num" style="text-align:right;color:${isMin ? 'var(--err)' : 'inherit'}">
+              ${Number(c.recall_pct).toFixed(2)}%${isMin ? ' <span class="tag err">最弱</span>' : ''}</td>
+          </tr>`;
+        }).join('')}</tbody></table>`;
+    }
+
+    $('eval-meta').innerHTML = `
+      <div class="card" style="background:transparent;border:none;padding:0">
+        <div class="k">评测集用例总数</div>
+        <div class="v" style="font-size:32px">${fmt(d.cases)}</div>
+        <div class="note" style="margin-top:10px;line-height:1.9">
+          覆盖六大茶类 / 冲泡技艺 / 选购储存 / 茶器养护 / 茶文化 / 茶与健康<br>
+          分三类设计：术语型（BM25 应占优）、语义型（向量应占优）、难例（易混术语与多跳）
+        </div>
+      </div>`;
+  } catch (e) {
+    showErr($('eval-runs'), e);
+  }
+}
+
+// ---------- 链路追踪 ----------
+let tracePage = 1, traceTotal = 0, traceSize = 20;
+
+async function loadTrace(page) {
+  tracePage = page || tracePage;
+  $('trace-list').innerHTML = '<div class="loading">加载中…</div>';
+  try {
+    const span = $('trace-span').value;
+    const qs = `?page=${tracePage}&size=${traceSize}` + (span ? `&spanName=${encodeURIComponent(span)}` : '');
+    const d = await get('/api/admin/traces' + qs);
+    traceTotal = d.total;
+    const rows = d.rows || [];
+    const totalPages = Math.max(1, Math.ceil(traceTotal / traceSize));
+    $('trace-pageinfo').textContent = `第 ${tracePage} / ${totalPages} 页 · 共 ${fmt(traceTotal)} 条`;
+
+    if (!rows.length) {
+      $('trace-list').innerHTML = '<div class="empty">暂无记录</div>';
+      return;
+    }
+    $('trace-list').innerHTML = `
+      <table>
+        <thead><tr><th>时间</th><th>阶段</th><th>意图</th>
+          <th style="text-align:right">prompt</th><th style="text-align:right">completion</th>
+          <th style="text-align:right">成本</th><th style="text-align:right">耗时</th>
+          <th>trace_id</th></tr></thead>
+        <tbody>${rows.map(r => {
+          const slow = Number(r.latency_ms) > 3000;
+          return `<tr>
+            <td class="mono">${esc(String(r.created_at || '').replace('T',' ').slice(5,19))}</td>
+            <td>${esc(r.span_name)}</td>
+            <td>${r.intent ? `<span class="tag info">${esc(r.intent)}</span>` : '<span class="tag mute" title="该记录产生于 v1.1 之前，当时未写 intent 字段">历史无记录</span>'}</td>
+            <td class="num" style="text-align:right">${fmt(r.prompt_tokens)}</td>
+            <td class="num" style="text-align:right">${fmt(r.completion_tokens)}</td>
+            <td class="num" style="text-align:right">${fmtMoney(r.cost_yuan)}</td>
+            <td class="num" style="text-align:right;color:${slow ? 'var(--warn)' : 'inherit'}">${fmt(r.latency_ms)} ms</td>
+            <td class="mono" title="${esc(r.trace_id)}">${esc(String(r.trace_id || '').slice(0, 12))}…</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+  } catch (e) {
+    showErr($('trace-list'), e);
+  }
+}
+
+$('trace-prev')?.addEventListener('click', () => { if (tracePage > 1) loadTrace(tracePage - 1); });
+$('trace-next')?.addEventListener('click', () => {
+  const totalPages = Math.max(1, Math.ceil(traceTotal / traceSize));
+  if (tracePage < totalPages) loadTrace(tracePage + 1);
+});
+$('trace-span')?.addEventListener('change', () => loadTrace(1));
+
+// ---------- 订单 ----------
+let orderPage = 1, orderTotal = 0, orderSize = 20;
+
+async function loadOrders(page) {
+  orderPage = page || orderPage;
+  $('order-list').innerHTML = '<div class="loading">加载中…</div>';
+  try {
+    const kw = $('order-kw').value.trim();
+    const st = $('order-status').value;
+    const qs = `?page=${orderPage}&size=${orderSize}`
+      + (kw ? `&keyword=${encodeURIComponent(kw)}` : '')
+      + (st ? `&status=${encodeURIComponent(st)}` : '');
+    const d = await get('/api/admin/orders' + qs);
+    orderTotal = d.total;
+
+    const CNT = d.statusCounts || {};
+    const NAMES = { '': '全部', unpaid: '待付款', unship: '待发货', unreceive: '待收货',
+                    unreview: '待评价', completed: '已完成', cancelled: '已取消' };
+    const all = Object.values(CNT).reduce((a, b) => a + Number(b || 0), 0);
+    $('order-tabs').innerHTML = Object.entries(NAMES).map(([k, label]) => {
+      const c = k === '' ? all : (CNT[k] || 0);
+      const on = ($('order-status').value === k);
+      return `<button class="btn" data-st="${k}" style="${on ? 'background:var(--accent2);border-color:var(--accent2);color:#fff' : ''}">`
+        + `${label} <span style="opacity:.7">${c}</span></button>`;
+    }).join('');
+    $('order-tabs').querySelectorAll('button').forEach(b => {
+      b.onclick = () => { $('order-status').value = b.dataset.st; loadOrders(1); };
+    });
+
+    const rows = d.rows || [];
+    const totalPages = Math.max(1, Math.ceil(orderTotal / orderSize));
+    $('order-pageinfo').textContent = `第 ${orderPage} / ${totalPages} 页 · 共 ${fmt(orderTotal)} 单`;
+    $('order-summary').textContent = `${fmt(orderTotal)} 笔订单`;
+
+    if (!rows.length) { $('order-list').innerHTML = '<div class="empty">无匹配订单</div>'; return; }
+
+    const STCLS = { unpaid: 'warn', unship: 'info', unreceive: 'info',
+                    unreview: 'mute', completed: 'ok', cancelled: 'mute' };
+    $('order-list').innerHTML = `
+      <table>
+        <thead><tr><th>订单号</th><th>下单时间</th><th>用户</th><th>商品</th>
+          <th style="text-align:right">件数</th><th style="text-align:right">实付</th>
+          <th>状态</th><th>操作</th></tr></thead>
+        <tbody>${rows.map(r => `
+          <tr>
+            <td class="mono">${esc(r.order_no)}</td>
+            <td class="mono">${esc(String(r.created_at || '').replace('T',' ').slice(0,16))}</td>
+            <td>${esc(r.nickname || '-')}<br><span class="mono">${esc(r.phone || '')}</span></td>
+            <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                title="${esc(r.items_brief || '')}">
+              ${r.noItems
+                ? '<span class="tag err">无明细</span>'
+                : `${esc(r.shop_name || '')} · ${esc(r.items_brief || '-')}`}</td>
+            <td class="num" style="text-align:right">${fmt(r.item_count)}</td>
+            <td class="num" style="text-align:right">¥${Number(r.pay_amount || 0).toFixed(2)}</td>
+            <td><span class="tag ${STCLS[r.status] || 'mute'}">${esc(r.statusText)}</span></td>
+            <td><button class="btn" data-oid="${r.id}">详情</button></td>
+          </tr>`).join('')}</tbody>
+      </table>`;
+    $('order-list').querySelectorAll('button[data-oid]').forEach(b => {
+      b.onclick = () => showOrderDetail(b.dataset.oid);
+    });
+  } catch (e) {
+    showErr($('order-list'), e);
+  }
+}
+
+async function showOrderDetail(id) {
+  try {
+    const d = await get('/api/admin/order-detail?id=' + id);
+    if (d.error) { toast(d.error, 'error'); return; }
+    const o = d.order || {};
+    const items = d.items || [];
+    const addr = d.address;
+    const next = d.allowedNext || [];
+    const NEXT_LABEL = { unship: '确认发货', unreceive: '标记已发货', unreview: '标记已收货',
+                         completed: '完成订单', cancelled: '取消订单' };
+
+    const html = `
+      <div style="line-height:2">
+        <div><b>订单号</b> ${esc(o.order_no)}　<b>状态</b> <span class="tag info">${esc(d.statusText)}</span></div>
+        <div><b>用户</b> ${esc(o.nickname||'-')} ${esc(o.user_phone||'')}　
+             <b>店铺</b> ${esc(o.shop_name||'-')}</div>
+        <div><b>下单时间</b> ${esc(String(o.created_at||'').replace('T',' ').slice(0,19))}</div>
+        ${addr ? `<div><b>收货</b> ${esc(addr.receiver)} ${esc(addr.phone)}　
+             ${esc(addr.full_address || ((addr.province||'')+(addr.city||'')+(addr.district||'')+(addr.detail||'')))}</div>`
+               : '<div><b>收货</b> <span class="tag err">地址已删除</span></div>'}
+      </div>
+      <table style="margin-top:14px">
+        <thead><tr><th>商品</th><th>规格</th><th style="text-align:right">单价</th>
+          <th style="text-align:right">数量</th><th style="text-align:right">小计</th></tr></thead>
+        <tbody>${items.map(i => `<tr>
+          <td>${esc(i.product_emoji||'')} ${esc(i.product_name)}</td>
+          <td>${esc(i.product_spec||'-')}</td>
+          <td class="num" style="text-align:right">¥${Number(i.price||0).toFixed(2)}</td>
+          <td class="num" style="text-align:right">${i.quantity}</td>
+          <td class="num" style="text-align:right">¥${Number(i.subtotal||0).toFixed(2)}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      <div style="margin-top:12px;text-align:right;line-height:1.9">
+        商品总额 ¥${Number(o.total_amount||0).toFixed(2)}　
+        优惠 ¥${Number(o.discount_amount||0).toFixed(2)}　
+        <b>实付 ¥${Number(o.pay_amount||0).toFixed(2)}</b>
+        ${d.amountConsistent ? '' : `<div class="tag err" style="margin-top:6px">明细合计 ¥${d.itemsSum} 与订单总额不一致，数据异常</div>`}
+      </div>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+        ${isReadOnly()
+          ? '<span class="tag mute">只读账号，无操作权限</span>'
+          : (next.map(n => `<button class="btn primary" onclick="changeOrderStatus(${o.id},'${n}')">${NEXT_LABEL[n] || n}</button>`).join('')
+             || '<span class="tag mute">终态，无可用操作</span>')}
+        <button class="btn" onclick="closeModal()">关闭</button>
+      </div>`;
+    openModal('订单详情', html);
+  } catch (e) { toast('加载详情失败：' + e.message, 'error'); }
+}
+
+window.changeOrderStatus = async (id, target) => {
+  const LABEL = { unship:'待发货', unreceive:'待收货', unreview:'待评价',
+                  completed:'已完成', cancelled:'已取消' };
+  if (!(await askConfirm(`确认将订单改为「${LABEL[target] || target}」？`))) return;
+  try {
+    const r = await post('/api/admin/order-status', { id, status: target });
+    if (!r.ok) { toast('操作失败：' + r.error, 'error'); return; }
+    closeModal();
+    loadOrders(orderPage);
+  } catch (e) { toast('操作失败：' + e.message, 'error'); }
+};
+
+$('order-search')?.addEventListener('click', () => loadOrders(1));
+$('order-kw')?.addEventListener('keydown', e => { if (e.key === 'Enter') loadOrders(1); });
+$('order-prev')?.addEventListener('click', () => { if (orderPage > 1) loadOrders(orderPage - 1); });
+$('order-next')?.addEventListener('click', () => {
+  const tp = Math.max(1, Math.ceil(orderTotal / orderSize));
+  if (orderPage < tp) loadOrders(orderPage + 1);
+});
+
+// ---------- 商品 ----------
+let prodPage = 1, prodTotal = 0, prodSize = 20, prodOptionsLoaded = false;
+
+async function loadProductOptions() {
+  if (prodOptionsLoaded) return;
+  try {
+    const d = await get('/api/admin/product-options');
+    $('prod-shop').innerHTML = '<option value="">全部店铺</option>' +
+      (d.shops || []).map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
+    $('prod-cat').innerHTML = '<option value="">全部分类</option>' +
+      (d.categories || []).map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join('');
+    prodOptionsLoaded = true;
+  } catch (e) { /* 下拉加载失败不影响主列表 */ }
+}
+
+async function loadProducts(page) {
+  prodPage = page || prodPage;
+  $('product-list').innerHTML = '<div class="loading">加载中…</div>';
+  await loadProductOptions();
+  try {
+    const kw = $('prod-kw').value.trim();
+    const shop = $('prod-shop').value;
+    const cat = $('prod-cat').value;
+    const low = $('prod-low').value;
+    const qs = `?page=${prodPage}&size=${prodSize}`
+      + (kw ? `&keyword=${encodeURIComponent(kw)}` : '')
+      + (shop ? `&shopId=${shop}` : '')
+      + (cat ? `&categoryId=${cat}` : '')
+      + (low ? `&lowStock=true` : '');
+    const d = await get('/api/admin/products' + qs);
+    prodTotal = d.total;
+
+    const rows = d.rows || [];
+    const totalPages = Math.max(1, Math.ceil(prodTotal / prodSize));
+    $('prod-pageinfo').textContent = `第 ${prodPage} / ${totalPages} 页 · 共 ${fmt(prodTotal)} 件`;
+    $('product-summary').textContent = `${fmt(prodTotal)} 件商品`;
+
+    if (!rows.length) { $('product-list').innerHTML = '<div class="empty">无匹配商品</div>'; return; }
+
+    $('product-list').innerHTML = `
+      <table>
+        <thead><tr><th>ID</th><th>商品</th><th>店铺 / 分类</th>
+          <th style="text-align:right">价格区间</th><th style="text-align:right">规格数</th>
+          <th style="text-align:right">总库存</th><th style="text-align:right">销量</th>
+          <th>状态</th><th>操作</th></tr></thead>
+        <tbody>${rows.map(r => {
+          const stock = Number(r.total_stock || 0);
+          const lowStock = stock < 10;
+          const priceRange = Number(r.min_price) === Number(r.max_price)
+            ? `¥${Number(r.min_price||0).toFixed(2)}`
+            : `¥${Number(r.min_price||0).toFixed(0)} ~ ${Number(r.max_price||0).toFixed(0)}`;
+          return `<tr>
+            <td class="num">${r.id}</td>
+            <td>${esc(r.emoji||'')} ${esc(r.name)}
+                <br><span class="mono">${esc(r.subtitle||'')}</span></td>
+            <td>${esc(r.shop_name||'-')}<br><span class="tag mute">${esc(r.category_name||'-')}</span></td>
+            <td class="num" style="text-align:right">${priceRange}</td>
+            <td class="num" style="text-align:right">${fmt(r.spec_count)}</td>
+            <td class="num" style="text-align:right;color:${lowStock?'var(--warn)':'inherit'}">
+                ${fmt(stock)}${lowStock?' <span class="tag warn">低</span>':''}</td>
+            <td class="num" style="text-align:right">${fmt(r.sales)}</td>
+            <td><span class="tag ${Number(r.status)===1?'ok':'mute'}">${Number(r.status)===1?'上架':'下架'}</span></td>
+            <td style="white-space:nowrap">
+              <button class="btn" data-pid="${r.id}">规格</button>
+              <button class="btn" data-tid="${r.id}" data-cur="${r.status}">${Number(r.status)===1?'下架':'上架'}</button>
+            </td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+
+    if (isReadOnly()) {
+      // 只读角色：隐藏上下架与规格编辑
+      $('product-list').querySelectorAll('button[data-tid]').forEach(b => b.style.display = 'none');
+    }
+    $('product-list').querySelectorAll('button[data-pid]').forEach(b => {
+      b.onclick = () => showProductSpecs(b.dataset.pid);
+    });
+    $('product-list').querySelectorAll('button[data-tid]').forEach(b => {
+      b.onclick = () => toggleProduct(Number(b.dataset.tid), Number(b.dataset.cur) === 1 ? 0 : 1);
+    });
+  } catch (e) {
+    showErr($('product-list'), e);
+  }
+}
+
+async function showProductSpecs(id) {
+  try {
+    const d = await get('/api/admin/product-detail?id=' + id);
+    if (d.error) { toast(d.error, 'error'); return; }
+    const p = d.product || {};
+    const specs = d.specs || [];
+    const html = `
+      <div style="line-height:1.9;margin-bottom:12px">
+        <b>${esc(p.emoji||'')} ${esc(p.name)}</b><br>
+        <span class="mono">${esc(p.shop_name||'')} · ${esc(p.category_name||'')} · ${esc(p.origin||'')}</span>
+      </div>
+      <div class="tag warn" style="margin-bottom:10px">product.stock 只是默认规格的展示副本，真实库存以下表各规格为准</div>
+      <table>
+        <thead><tr><th>规格</th><th style="text-align:right">价格</th>
+          <th style="text-align:right">原价</th><th style="text-align:right">库存</th>
+          <th style="text-align:right">销量</th><th>操作</th></tr></thead>
+        <tbody>${specs.map(s => `<tr>
+          <td>${esc(s.spec_name)}</td>
+          <td class="num" style="text-align:right">¥${Number(s.price||0).toFixed(2)}</td>
+          <td class="num" style="text-align:right;color:var(--dim2)">¥${Number(s.original_price||0).toFixed(2)}</td>
+          <td class="num" style="text-align:right;color:${Number(s.stock)<10?'var(--warn)':'inherit'}">${s.stock}</td>
+          <td class="num" style="text-align:right">${s.sales}</td>
+          <td><button class="btn spec-edit" data-sid="${s.id}"
+              data-name="${esc(s.spec_name)}" data-price="${s.price}" data-stock="${s.stock}">编辑</button></td>
+        </tr>`).join('')}</tbody>
+      </table>
+      <div style="margin-top:16px;text-align:right">
+        <button class="btn" onclick="closeModal()">关闭</button>
+      </div>`;
+    openModal('规格与库存', html);
+    // 用事件绑定而非内联 onclick：规格名含引号时内联写法会被截断
+    if (isReadOnly()) hideIfReadOnly('button.spec-edit');
+    $('modal-body').querySelectorAll('button.spec-edit').forEach(b => {
+      b.onclick = () => editSpec(Number(b.dataset.sid), b.dataset.name,
+                                 Number(b.dataset.price), Number(b.dataset.stock));
+    });
+  } catch (e) { toast('加载失败：' + e.message, 'error'); }
+}
+
+window.editSpec = async (specId, name, price, stock) => {
+  const np = await askInput(`「${name}」新价格（元）`, price, '编辑规格');
+  if (np === null) return;
+  const ns = await askInput(`「${name}」新库存`, stock, '编辑规格');
+  if (ns === null) return;
+  const payload = { specId };
+  if (np !== '' && !isNaN(Number(np))) payload.price = Number(np);
+  if (ns !== '' && !isNaN(Number(ns))) payload.stock = Number(ns);
+  post('/api/admin/spec-update', payload).then(r => {
+    if (!r.ok) { toast('保存失败：' + r.error, 'error'); return; }
+    closeModal();
+    loadProducts(prodPage);
+  }).catch(e => toast('保存失败：' + e.message, 'error'));
+};
+
+window.toggleProduct = async (id, status) => {
+  const label = status === 1 ? '上架' : '下架';
+  const impact = status === 0 ? '\n\n下架影响：\n· 小程序商品列表立即不可见\n· 已打开的详情页会显示「已下架」\n· 购物车与历史订单不受影响' : '';
+
+  if (!(await askConfirm(`确认${label}该商品？${impact}`, `${label}商品`))) return;
+  try {
+    const r = await post('/api/admin/product-status', { id, status });
+    if (!r.ok) { toast('操作失败：' + r.error, 'error'); return; }
+    loadProducts(prodPage);
+  } catch (e) { toast('操作失败：' + e.message, 'error'); }
+};
+
+$('prod-search')?.addEventListener('click', () => loadProducts(1));
+$('prod-kw')?.addEventListener('keydown', e => { if (e.key === 'Enter') loadProducts(1); });
+$('prod-prev')?.addEventListener('click', () => { if (prodPage > 1) loadProducts(prodPage - 1); });
+$('prod-next')?.addEventListener('click', () => {
+  const tp = Math.max(1, Math.ceil(prodTotal / prodSize));
+  if (prodPage < tp) loadProducts(prodPage + 1);
+});
+
+// ---------- 通用弹窗 ----------
+function openModal(title, html) {
+  let m = $('modal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'modal';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99;'
+      + 'display:flex;align-items:center;justify-content:center;padding:30px';
+    m.innerHTML = '<div style="background:#16281f;border:1px solid rgba(255,255,255,.15);'
+      + 'border-radius:12px;padding:22px;max-width:860px;width:100%;max-height:86vh;overflow-y:auto">'
+      + '<div style="display:flex;align-items:center;margin-bottom:16px">'
+      + '<h3 id="modal-title" style="font-size:15px;color:#c8dcc8"></h3></div>'
+      + '<div id="modal-body"></div></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click', e => { if (e.target === m) closeModal(); });
+  }
+  $('modal-title').textContent = title;
+  $('modal-body').innerHTML = html;
+  m.style.display = 'flex';
+}
+window.closeModal = () => { const m = $('modal'); if (m) m.style.display = 'none'; };
+
+/**
+ * 非阻塞提示组件。
+ *
+ * 为什么不用 alert/confirm：
+ *   它们是浏览器原生模态框，会**冻结整个 JS 事件循环**——页面停止渲染、其他请求挂起。
+ *   在自动化测试里表现为「点了没反应」，在真实使用里表现为「网卡时整个页面卡死」。
+ *   换成 DOM 实现后，提示与后台请求可以并行，且样式统一。
+ */
+function toast(msg, type = 'info', ms = 3000) {
+  let box = $('toast-box');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'toast-box';
+    box.style.cssText = 'position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:999;'
+      + 'display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none';
+    document.body.appendChild(box);
+  }
+  const color = type === 'error' ? 'var(--err)' : type === 'ok' ? 'var(--accent)' : 'var(--info)';
+  const bg = type === 'error' ? 'rgba(232,139,139,.15)' : type === 'ok' ? 'rgba(143,214,148,.15)' : 'rgba(143,195,232,.15)';
+  const el = document.createElement('div');
+  el.style.cssText = `background:${bg};border:1px solid ${color};color:${color};padding:10px 18px;`
+    + 'border-radius:9px;font-size:13px;max-width:560px;line-height:1.7;box-shadow:0 4px 16px rgba(0,0,0,.4);'
+    + 'white-space:pre-wrap;word-break:break-word';
+  el.textContent = msg;
+  box.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 320); }, ms);
+}
+
+/**
+ * 自定义确认框。返回 Promise<boolean>。
+ * 与 toast 同理：原生 confirm 会冻结事件循环。
+ */
+function askConfirm(msg, title = '确认操作') {
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;'
+      + 'display:flex;align-items:center;justify-content:center;padding:30px';
+    wrap.innerHTML = `<div style="background:#16281f;border:1px solid rgba(255,255,255,.15);
+        border-radius:12px;padding:22px;max-width:440px;width:100%">
+        <div style="font-size:14px;color:#c8dcc8;margin-bottom:12px;font-weight:600">${esc(title)}</div>
+        <div style="font-size:13px;color:var(--dim);line-height:1.8;white-space:pre-wrap">${esc(msg)}</div>
+        <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn" data-ans="0">取消</button>
+          <button class="btn primary" data-ans="1">确定</button>
+        </div></div>`;
+    document.body.appendChild(wrap);
+    wrap.querySelectorAll('button[data-ans]').forEach(b => {
+      b.onclick = () => { wrap.remove(); resolve(b.dataset.ans === '1'); };
+    });
+  });
+}
+
+
+// ---------- 知识块管理 ----------
+let chunkPage = 1, chunkTotal = 0, chunkSize = 20, chunkDirty = false;
+
+async function loadChunks(page) {
+  chunkPage = page || chunkPage;
+  $('chunk-list').innerHTML = '<div class="loading">加载中…</div>';
+  try {
+    // 文档下拉只加载一次
+    if (!window.__docOptionsLoaded) {
+      const kd = await get('/api/admin/knowledge');
+      $('chunk-doc').innerHTML = '<option value="">全部文档</option>' +
+        (kd.documents || []).map(x => `<option value="${x.id}">${esc(x.title)}（${x.actual_chunks}）</option>`).join('');
+      window.__docOptionsLoaded = true;
+    }
+
+    const doc = $('chunk-doc').value;
+    const kw = $('chunk-kw').value.trim();
+    const qs = `?page=${chunkPage}&size=${chunkSize}`
+      + (doc ? `&documentId=${doc}` : '')
+      + (kw ? `&keyword=${encodeURIComponent(kw)}` : '');
+    const d = await get('/api/admin/chunks' + qs);
+    chunkTotal = d.total;
+
+    const rows = d.rows || [];
+    const tp = Math.max(1, Math.ceil(chunkTotal / chunkSize));
+    $('chunk-pageinfo').textContent = `第 ${chunkPage} / ${tp} 页 · 共 ${fmt(chunkTotal)} 块`;
+    $('chunk-summary').textContent = `${fmt(chunkTotal)} 个知识块`;
+
+    if (!rows.length) { $('chunk-list').innerHTML = '<div class="empty">无匹配知识块</div>'; return; }
+
+    $('chunk-list').innerHTML = `
+      <table>
+        <thead><tr><th>ID</th><th>所属文档</th><th style="text-align:right">序号</th>
+          <th>内容预览</th><th style="text-align:right">字数</th><th>操作</th></tr></thead>
+        <tbody>${rows.map(r => `<tr>
+          <td class="num">${r.id}</td>
+          <td>${esc(r.doc_title || '-')}</td>
+          <td class="num" style="text-align:right">${r.chunk_index}</td>
+          <td style="max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="${esc(r.preview || '')}">${esc(r.preview || '')}</td>
+          <td class="num" style="text-align:right">${fmt(r.len)}</td>
+          <td style="white-space:nowrap">
+            <button class="btn" data-cid="${r.id}" data-act="view">查看</button>
+            <button class="btn" data-cid="${r.id}" data-act="edit">编辑</button>
+            <button class="btn" data-cid="${r.id}" data-act="del">删除</button>
+          </td>
+        </tr>`).join('')}</tbody>
+      </table>`;
+
+    if (isReadOnly()) {
+      // 只读角色：隐藏新增/编辑/删除，保留查看
+      hideIfReadOnly('#chunk-add, #btn-rebuild');
+      $('chunk-list').querySelectorAll('button[data-act="edit"], button[data-act="del"]')
+        .forEach(b => b.style.display = 'none');
+    }
+    $('chunk-list').querySelectorAll('button[data-cid]').forEach(b => {
+      const id = b.dataset.cid, act = b.dataset.act;
+      b.onclick = () => act === 'view' ? viewChunk(id)
+        : act === 'edit' ? editChunk(id)
+        : deleteChunk(id);
+    });
+  } catch (e) {
+    showErr($('chunk-list'), e);
+  }
+}
+
+async function viewChunk(id) {
+  try {
+    const c = await get('/api/admin/chunk?id=' + id);
+    if (c.error) { toast(c.error, 'error'); return; }
+    openModal('知识块 #' + id, `
+      <div style="line-height:1.9;margin-bottom:10px" class="mono">
+        文档：${esc(c.doc_title || '-')}　序号：${c.chunk_index}　字数：${c.content ? c.content.length : 0}
+      </div>
+      <div style="background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:8px;
+                  padding:14px;line-height:1.9;white-space:pre-wrap">${esc(c.content || '')}</div>
+      <div style="margin-top:16px;text-align:right">
+        <button class="btn" onclick="closeModal()">关闭</button>
+      </div>`);
+  } catch (e) { toast('加载失败：' + e.message, 'error'); }
+}
+
+async function editChunk(id) {
+  try {
+    const c = await get('/api/admin/chunk?id=' + id);
+    if (c.error) { toast(c.error, 'error'); return; }
+    openModal('编辑知识块 #' + id, `
+      <div style="font-size:12px;color:var(--dim2);margin-bottom:8px">
+        修改后需重建向量索引，检索结果才会变化
+      </div>
+      <textarea id="chunk-editor" style="width:100%;height:280px;background:rgba(0,0,0,.25);
+        color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:12px;
+        font-family:inherit;font-size:13px;line-height:1.8;resize:vertical"
+        >${esc(c.content || '')}</textarea>
+      <div style="margin-top:8px;font-size:11.5px;color:var(--dim2)" id="chunk-counter"></div>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn primary" onclick="saveChunk(${id})">保存</button>
+        <button class="btn" onclick="closeModal()">取消</button>
+      </div>`);
+    const ta = $('chunk-editor');
+    const upd = () => $('chunk-counter').textContent = `当前 ${ta.value.length} 字`;
+    ta.addEventListener('input', upd); upd();
+  } catch (e) { toast('加载失败：' + e.message, 'error'); }
+}
+
+window.saveChunk = async (id) => {
+  const content = $('chunk-editor').value.trim();
+  if (!content) { toast('内容不能为空', 'error'); return; }
+  try {
+    const r = await post('/api/admin/chunk-update', { id, content });
+    if (!r.ok) { toast('保存失败：' + r.error, 'error'); return; }
+    closeModal();
+    chunkDirty = true;
+    showRebuildHint(r.note);
+    loadChunks(chunkPage);
+  } catch (e) { toast('保存失败：' + e.message, 'error'); }
+};
+
+window.deleteChunk = async (id) => {
+  if (!(await askConfirm(`确认删除知识块 #${id}？\n\n删除后需重建索引才会从检索中消失。`))) return;
+  try {
+    const r = await post('/api/admin/chunk-delete', { id });
+    if (!r.ok) { toast('删除失败：' + r.error, 'error'); return; }
+    chunkDirty = true;
+    showRebuildHint(r.note);
+    loadChunks(chunkPage);
+  } catch (e) { toast('删除失败：' + e.message, 'error'); }
+};
+
+function showRebuildHint(note) {
+  $('chunk-rebuild-hint').innerHTML = `<div class="err-box" style="margin-bottom:12px;
+    background:rgba(232,192,125,.1);border-color:rgba(232,192,125,.35);color:var(--warn)">
+    ⚠ 内容已修改，<b>检索结果尚未更新</b>。请点上方「重建向量索引」使其生效。
+    ${note ? `<br><span style="font-size:11.5px;opacity:.8">${esc(note)}</span>` : ''}</div>`;
+}
+
+$('chunk-add')?.addEventListener('click', () => {
+  const docs = [...$('chunk-doc').options].filter(o => o.value);
+  if (!docs.length) { toast('请先加载文档列表', 'error'); return; }
+  openModal('新增知识块', `
+    <div style="font-size:12px;color:var(--dim2);margin-bottom:8px">选择所属文档并填写内容</div>
+    <select id="new-chunk-doc" class="btn" style="width:100%;padding:9px;margin-bottom:10px">
+      ${docs.map(o => `<option value="${o.value}">${esc(o.textContent)}</option>`).join('')}
+    </select>
+    <textarea id="new-chunk-text" placeholder="输入知识内容…" style="width:100%;height:240px;
+      background:rgba(0,0,0,.25);color:var(--fg);border:1px solid var(--line2);border-radius:8px;
+      padding:12px;font-family:inherit;font-size:13px;line-height:1.8;resize:vertical"></textarea>
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn primary" onclick="createChunk()">创建</button>
+      <button class="btn" onclick="closeModal()">取消</button>
+    </div>`);
+});
+
+window.createChunk = async () => {
+  const docId = $('new-chunk-doc').value;
+  const content = $('new-chunk-text').value.trim();
+  if (!content) { toast('内容不能为空', 'error'); return; }
+  try {
+    const r = await post('/api/admin/chunk-create', { documentId: Number(docId), content });
+    if (!r.ok) { toast('创建失败：' + r.error, 'error'); return; }
+    closeModal();
+    chunkDirty = true;
+    showRebuildHint(r.note);
+    window.__docOptionsLoaded = false;   // 块数变了，下拉要重载
+    loadChunks(1);
+  } catch (e) { toast('创建失败：' + e.message, 'error'); }
+};
+
+$('chunk-search')?.addEventListener('click', () => loadChunks(1));
+$('chunk-kw')?.addEventListener('keydown', e => { if (e.key === 'Enter') loadChunks(1); });
+$('chunk-doc')?.addEventListener('change', () => loadChunks(1));
+$('chunk-prev')?.addEventListener('click', () => { if (chunkPage > 1) loadChunks(chunkPage - 1); });
+$('chunk-next')?.addEventListener('click', () => {
+  const tp = Math.max(1, Math.ceil(chunkTotal / chunkSize));
+  if (chunkPage < tp) loadChunks(chunkPage + 1);
+});
+
+// ---------- 工具审计 ----------
+let toolPage = 1, toolTotal = 0, toolSize = 20, toolOptionsLoaded = false;
+
+async function loadToolCalls(page) {
+  toolPage = page || toolPage;
+  $('tool-list').innerHTML = '<div class="loading">加载中…</div>';
+  try {
+    const name = $('tool-name').value;
+    const filter = $('tool-filter').value;
+    const qs = `?page=${toolPage}&size=${toolSize}`
+      + (name ? `&toolName=${encodeURIComponent(name)}` : '')
+      + (filter === 'failed' ? '&onlyFailed=true' : '')
+      + (filter === 'write' ? '&onlyWrite=true' : '');
+    const d = await get('/api/admin/tool-calls' + qs);
+    toolTotal = d.total;
+
+    // 工具下拉与统计表
+    const stats = d.stats || [];
+    if (!toolOptionsLoaded && stats.length) {
+      $('tool-name').innerHTML = '<option value="">全部工具</option>' +
+        stats.map(s => `<option value="${esc(s.tool_name)}">${esc(s.tool_name)}</option>`).join('');
+      toolOptionsLoaded = true;
+    }
+    renderToolStats(stats);
+
+    const rows = d.rows || [];
+    const tp = Math.max(1, Math.ceil(toolTotal / toolSize));
+    $('tool-pageinfo').textContent = `第 ${toolPage} / ${tp} 页 · 共 ${fmt(toolTotal)} 次`;
+    $('tool-summary').textContent = `${fmt(toolTotal)} 次调用`;
+
+    if (!rows.length) { $('tool-list').innerHTML = '<div class="empty">无匹配记录</div>'; return; }
+
+    $('tool-list').innerHTML = `
+      <table>
+        <thead><tr><th>时间</th><th>工具</th><th>返回码</th>
+          <th style="text-align:right">耗时</th><th>幂等键</th><th>trace_id</th></tr></thead>
+        <tbody>${rows.map(r => {
+          const code = r.response_code;
+          const isWrite = !!r.idempotent_key;
+          const codeTag = code == null ? '<span class="tag mute">未记录</span>'
+            : code === 200 ? '<span class="tag ok">200</span>'
+            : `<span class="tag err">${code}</span>`;
+          return `<tr style="${isWrite ? 'background:rgba(143,214,148,.045)' : ''}">
+            <td class="mono">${esc(String(r.created_at||'').replace('T',' ').slice(5,19))}</td>
+            <td>${esc(r.tool_name)}${isWrite ? ' <span class="tag warn">写</span>' : ''}</td>
+            <td>${codeTag}</td>
+            <td class="num" style="text-align:right">${fmt(r.latency_ms)} ms</td>
+            <td class="mono" title="${esc(r.idempotent_key || '')}">
+              ${r.idempotent_key ? esc(String(r.idempotent_key).slice(0, 18)) + '…' : '-'}</td>
+            <td class="mono">${esc(String(r.trace_id||'').slice(0, 10))}…</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+  } catch (e) {
+    showErr($('tool-list'), e);
+  }
+}
+
+function renderToolStats(stats) {
+  if (!stats || !stats.length) { $('tool-stats').innerHTML = '<div class="empty">暂无统计</div>'; return; }
+  const noData = stats.every(s => s.success == null || Number(s.calls) === 0);
+  $('tool-stats').innerHTML = `
+    <table>
+      <thead><tr><th>工具</th><th style="text-align:right">调用次数</th>
+        <th style="text-align:right">成功</th><th style="text-align:right">成功率</th>
+        <th style="text-align:right">平均耗时</th><th>类型</th></tr></thead>
+      <tbody>${stats.map(s => {
+        const pct = s.success_pct == null ? null : Number(s.success_pct);
+        const bad = pct != null && pct < 90;
+        return `<tr>
+          <td>${esc(s.tool_name)}</td>
+          <td class="num" style="text-align:right">${fmt(s.calls)}</td>
+          <td class="num" style="text-align:right">${fmt(s.success)}</td>
+          <td class="num" style="text-align:right;color:${bad ? 'var(--warn)' : 'inherit'}">
+            ${pct == null ? '—' : pct.toFixed(2) + '%'}${bad ? ' <span class="tag warn">低</span>' : ''}</td>
+          <td class="num" style="text-align:right">${fmt(s.avg_ms)} ms</td>
+          <td>${Number(s.has_write) === 1 ? '<span class="tag warn">写操作</span>' : '<span class="tag mute">只读</span>'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+    ${noData ? `<div style="margin-top:10px;font-size:11.5px;color:var(--dim2);line-height:1.7">
+      历史记录产生于 v1.2 之前，当时未写 response_code 字段，因此成功率为空。<br>
+      修复后新产生的调用会正常记录返回码。</div>` : ''}`;
+}
+
+$('tool-search')?.addEventListener('click', () => loadToolCalls(1));
+$('tool-filter')?.addEventListener('change', () => loadToolCalls(1));
+$('tool-name')?.addEventListener('change', () => loadToolCalls(1));
+$('tool-prev')?.addEventListener('click', () => { if (toolPage > 1) loadToolCalls(toolPage - 1); });
+$('tool-next')?.addEventListener('click', () => {
+  const tp = Math.max(1, Math.ceil(toolTotal / toolSize));
+  if (toolPage < tp) loadToolCalls(toolPage + 1);
+});
+
+// ---------- 检索测试台 ----------
+let labInited = false;
+
+async function initLab() {
+  if (!labInited) {
+    labInited = true;
+    $('lab-run').onclick = runLab;
+    $('lab-q').addEventListener('keydown', e => { if (e.key === 'Enter') runLab(); });
+    loadLabSamples();
+  }
+}
+
+async function loadLabSamples() {
+  try {
+    const d = await get('/api/admin/search-lab/samples?limit=6');
+    const s = d.samples || [];
+    if (!s.length) { $('lab-samples').innerHTML = ''; return; }
+    $('lab-samples').innerHTML =
+      `<div style="font-size:11.5px;color:var(--dim2);margin-bottom:8px">`
+      + `示例问题（点一下填入）：BM25 漏召但混合检索命中，最能体现混合检索的价值</div>`
+      + `<div style="display:flex;gap:8px;flex-wrap:wrap">`
+      + s.map(x => `<button class="btn" data-q="${esc(x.question)}" style="font-size:12px">`
+        + `${esc(x.question)}</button>`).join('')
+      + `</div>`;
+    $('lab-samples').querySelectorAll('button[data-q]').forEach(b => {
+      b.onclick = () => { $('lab-q').value = b.dataset.q; runLab(); };
+    });
+  } catch (e) { /* 示例加载失败不影响主功能 */ }
+}
+
+async function runLab() {
+  const q = $('lab-q').value.trim();
+  if (!q) { $('lab-q').focus(); return; }
+  $('lab-result').innerHTML = '<div class="loading">四路检索中…</div>';
+  try {
+    const d = await post('/api/admin/search-lab', { q, topK: 5 });
+    if (d.error) { $('lab-result').innerHTML = `<div class="err-box">${esc(d.error)}</div>`; return; }
+    renderLab(d);
+  } catch (e) {
+    showErr($('lab-result'), e);
+  }
+}
+
+function renderLab(d) {
+  const lanes = d.lanes || [];
+  const hasExp = d.hasExpected;
+  const expected = d.expectedIds || [];
+
+  const head = hasExp
+    ? `<div style="margin-bottom:14px;font-size:12.5px;color:var(--dim)">
+         该问题在评测集中，期望命中块：<b style="color:var(--accent)">${expected.join(' / ') || '未标注'}</b>
+         ${d.evalCase && d.evalCase.category ? `　类别：<span class="tag mute">${esc(d.evalCase.category)}</span>` : ''}
+       </div>`
+    : `<div style="margin-bottom:14px;font-size:12px;color:var(--dim2)">
+         该问题不在评测集中，仅展示检索结果（无标准答案，故不做命中判定）
+       </div>`;
+
+  const cols = lanes.map(lane => {
+    const hitTag = lane.hit === true ? '<span class="tag ok">命中</span>'
+      : lane.hit === false ? '<span class="tag err">漏召</span>'
+      : '<span class="tag mute">—</span>';
+    const items = (lane.items || []).map(it => `
+      <div style="padding:9px 10px;margin-bottom:7px;border-radius:7px;font-size:12px;line-height:1.7;
+                  background:${it.expected ? 'rgba(143,214,148,.13)' : 'rgba(255,255,255,.04)'};
+                  border:1px solid ${it.expected ? 'rgba(143,214,148,.4)' : 'var(--line)'}">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+          <b style="color:${it.expected ? 'var(--accent)' : 'var(--dim)'}">#${esc(it.id)}</b>
+          <span class="mono" style="font-size:10.5px">${it.score}</span>
+        </div>
+        <div style="color:var(--dim);font-size:11.5px">${esc(it.preview)}</div>
+      </div>`).join('') || '<div class="empty" style="padding:16px">无结果</div>';
+
+    return `
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:7px;margin-bottom:9px">
+          <b style="font-size:13px;color:#c8dcc8">${esc(lane.name)}</b>${hitTag}
+        </div>
+        <div style="font-size:11px;color:var(--dim2);margin-bottom:9px;line-height:1.6">${esc(lane.desc)}</div>
+        ${lane.ok ? items : `<div class="err-box" style="font-size:11.5px">${esc(lane.error || '检索失败')}</div>`}
+        <div style="margin-top:9px;font-size:11px;color:var(--dim2)" class="mono">${lane.costMs} ms</div>
+      </div>`;
+  }).join('');
+
+  $('lab-result').innerHTML = head +
+    `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">${cols}</div>`;
+}
+
+// ---------- 会话时间线 ----------
+let sessInited = false;
+
+async function initSession() {
+  if (!sessInited) {
+    sessInited = true;
+    $('sess-load').onclick = () => loadTimeline($('sess-id').value.trim());
+    $('sess-id').addEventListener('keydown', e => {
+      if (e.key === 'Enter') loadTimeline($('sess-id').value.trim());
+    });
+    loadSessionList();
+  }
+}
+
+async function loadSessionList() {
+  try {
+    const d = await get('/api/admin/sessions?limit=12');
+    const rows = d.sessions || [];
+    if (!rows.length) { $('sess-list').innerHTML = '<div class="empty">暂无会话记录</div>'; return; }
+    $('sess-list').innerHTML =
+      `<div style="font-size:11.5px;color:var(--dim2);margin-bottom:8px">最近会话（点击查看时间线）</div>`
+      + `<div style="display:flex;gap:8px;flex-wrap:wrap">`
+      + rows.map(x => {
+          const ms = Number(x.total_ms || 0);
+          const n = Number(x.span_count || 0);
+          // 跨会话的单轮 span 会各自独立，只有 span_count>1 才是真正的多轮会话
+          return `<button class="btn" data-sid="${esc(x.session_id)}" style="font-size:11.5px">
+            <span class="mono">${esc(String(x.session_id).slice(0, 22))}</span>
+            <span style="opacity:.7"> · ${n} span · ${ms} ms</span></button>`;
+        }).join('')
+      + `</div>`;
+    $('sess-list').querySelectorAll('button[data-sid]').forEach(b => {
+      b.onclick = () => { $('sess-id').value = b.dataset.sid; loadTimeline(b.dataset.sid); };
+    });
+  } catch (e) {
+    $('sess-list').innerHTML = `<div class="err-box">会话列表加载失败：${esc(e.message)}</div>`;
+  }
+}
+
+async function loadTimeline(sessionId) {
+  if (!sessionId) { $('sess-id').focus(); return; }
+  $('sess-timeline').innerHTML = '<div class="loading">加载中…</div>';
+  try {
+    const d = await get('/api/admin/session-timeline?sessionId=' + encodeURIComponent(sessionId));
+    if (d.error) {
+      $('sess-timeline').innerHTML = `<div class="err-box">${esc(d.error)}</div>`;
+      $('sess-summary').textContent = '';
+      return;
+    }
+    renderTimeline(d);
+  } catch (e) {
+    showErr($('sess-timeline'), e);
+  }
+}
+
+function renderTimeline(d) {
+  const sm = d.summary || {};
+  const tl = d.timeline || [];
+
+  $('sess-summary').textContent =
+    `${sm.spanCount} 个 span · ${sm.toolCount} 次工具调用 · 合计 ${fmt(sm.totalLatencyMs)} ms`;
+
+  // 汇总卡
+  const cards = `
+    <div class="cards" style="margin-bottom:18px">
+      <div class="card"><div class="k">总耗时</div>
+        <div class="v">${fmt(sm.totalLatencyMs)}<small>ms</small></div></div>
+      <div class="card"><div class="k">工具耗时占比</div>
+        <div class="v">${sm.toolLatencyPct ?? 0}<small>%</small></div>
+        <div class="note">${fmt(sm.toolLatencyMs)} ms 花在工具调用</div></div>
+      <div class="card"><div class="k">Token 合计</div>
+        <div class="v">${fmt((sm.promptTokens||0) + (sm.completionTokens||0))}</div>
+        <div class="note">prompt ${fmt(sm.promptTokens)} / completion ${fmt(sm.completionTokens)}</div></div>
+      <div class="card"><div class="k">成本</div>
+        <div class="v">¥${Number(sm.totalCost || 0).toFixed(6)}</div></div>
+    </div>`;
+
+  if (!tl.length) {
+    $('sess-timeline').innerHTML = cards + '<div class="empty">该会话没有记录</div>';
+    return;
+  }
+
+  // 时间线节点
+  const nodes = tl.map(n => {
+    if (n.type === 'span') {
+      const isSwitch = String(n.spanName || '').startsWith('config.');
+      const color = isSwitch ? 'var(--warn)' : 'var(--accent)';
+      return `
+        <div style="display:flex;gap:14px;margin-bottom:12px">
+          <div style="width:130px;flex-shrink:0;text-align:right" class="mono">
+            ${esc(String(n.at || '').replace('T',' ').slice(11,19))}
+          </div>
+          <div style="width:2px;background:${color};opacity:.5;flex-shrink:0"></div>
+          <div style="flex:1;background:rgba(255,255,255,.045);border:1px solid var(--line);
+                      border-radius:8px;padding:11px 14px">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">
+              <b style="color:${color};font-size:13px">${esc(n.spanName)}</b>
+              ${n.intent ? `<span class="tag info">${esc(n.intent)}</span>` : ''}
+              <span style="margin-left:auto" class="mono">${fmt(n.latencyMs)} ms</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--dim2)" class="mono">
+              prompt ${fmt(n.promptTokens)} · completion ${fmt(n.completionTokens)}
+              · ¥${Number(n.costYuan || 0).toFixed(6)}
+            </div>
+          </div>
+        </div>`;
+    }
+    // tool 节点
+    const fail = n.responseCode != null && n.responseCode !== 200;
+    const noCode = n.responseCode == null;
+    const c = fail ? 'var(--err)' : noCode ? 'var(--dim2)' : 'var(--info)';
+    return `
+      <div style="display:flex;gap:14px;margin-bottom:8px">
+        <div style="width:130px;flex-shrink:0"></div>
+        <div style="width:2px;background:${c};opacity:.35;flex-shrink:0"></div>
+        <div style="flex:1;background:rgba(255,255,255,.02);border:1px dashed var(--line);
+                    border-radius:7px;padding:9px 13px;margin-left:14px">
+          <div style="display:flex;align-items:center;gap:8px;font-size:12.5px">
+            <span style="color:${c}">↳ ${esc(n.toolName)}</span>
+            ${n.idempotentKey ? '<span class="tag warn">写</span>' : ''}
+            ${noCode ? '<span class="tag mute">无返回码</span>'
+              : fail ? `<span class="tag err">${n.responseCode}</span>`
+              : `<span class="tag ok">${n.responseCode}</span>`}
+            <span style="margin-left:auto" class="mono">${fmt(n.latencyMs)} ms</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  $('sess-timeline').innerHTML = cards + nodes;
+}
+
+// ---------- 模型配置（含自定义 API 地址/密钥） ----------
+let modelInited = false;
+
+async function initModel() {
+  modelInited = true;
+  await loadModelConfig();
+}
+
+async function loadModelConfig() {
+  $('model-current').innerHTML = '<div class="loading">加载中…</div>';
+  $('model-presets').innerHTML = '<div class="loading">加载中…</div>';
+  try {
+    const d = await get('/api/admin/agent/model');
+    const cur = d.model;
+    const isCustom = !(d.presets || []).some(p => p.id === cur);
+
+    $('model-current').innerHTML = `
+      <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+        <div style="font-size:24px;font-weight:700;color:var(--accent)">${esc(cur)}</div>
+        ${cur === d.default ? '<span class="tag mute">配置文件默认</span>' : '<span class="tag warn">已从后台修改</span>'}
+      </div>
+      <div style="margin-top:10px;font-size:11.5px;color:var(--dim2);line-height:1.9">
+        API 地址：${esc(d.baseUrl || d.defaultBaseUrl || '-')}<br>
+        API 密钥：${d.apiKeyMasked || '<span style="color:var(--dim2)">未设置</span>'}　
+        Redis 键 <code>agent:config:llm</code>　本地缓存 ${d.cacheTtlMs / 1000} 秒
+      </div>`;
+
+    // 预设快速切换
+    const presets = d.presets || [];
+    $('model-presets').innerHTML = `
+      <table><thead><tr><th>快捷模型</th><th>说明</th><th>model 字符串</th><th>操作</th></tr></thead>
+      <tbody>${presets.map(p2 => {
+        const on = p2.id === cur;
+        return `<tr style="${on ? 'background:rgba(143,214,148,.06)' : ''}">
+          <td><b>${esc(p2.name)}</b>${on ? ' <span class="tag ok">当前</span>' : ''}</td>
+          <td style="color:var(--dim)">${esc(p2.desc)}</td>
+          <td class="mono">${esc(p2.id)}</td>
+          <td>${on ? '<span class="tag mute">使用中</span>'
+            : `<button class="btn" onclick="quickSwitch('${esc(p2.id)}')">切换</button>`}</td>
+        </tr>`;
+      }).join('')}</tbody></table>
+      <div style="margin-top:16px">
+        <b style="font-size:13px;color:#c8dcc8">自定义配置</b>
+        <span class="hint" style="font-size:11px;color:var(--dim2);margin-left:8px">
+          可填任意网关的任意模型；API 地址和密钥留空则沿用当前值</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+        <div><label class="lbl">模型 model 字符串 *</label>
+          <input id="cm-model" class="btn" style="width:100%;padding:9px;margin-top:4px"
+                 placeholder="如 qwen-plus / deepseek-v3" value="${esc(cur)}"></div>
+        <div><label class="lbl">API 地址（留空沿用当前）</label>
+          <input id="cm-url" class="btn" style="width:100%;padding:9px;margin-top:4px"
+                 placeholder="${esc(d.baseUrl || d.defaultBaseUrl || '')}"></div>
+        <div><label class="lbl">API 密钥（留空沿用当前）</label>
+          <input id="cm-key" class="btn" style="width:100%;padding:9px;margin-top:4px"
+                 type="password" placeholder="●●●●●●●●"></div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="btn primary" id="cm-save" style="padding:9px 18px">保存配置</button>
+        </div>
+      </div>`;
+
+    $('cm-save').onclick = () => saveModelConfig();
+  } catch (e) {
+    showErr($('model-current'), e);
+    $('model-presets').innerHTML = '';
+  }
+}
+
+window.quickSwitch = async (modelId) => {
+  if (!(await askConfirm(`切换到「${modelId}」？`, '切换模型'))) return;
+  try {
+    const r = await post('/api/admin/agent/model', { model: modelId });
+    if (!r.ok) { toast(r.error, 'error'); return; }
+    await loadModelConfig();
+    const info = await get('/api/agent/llm-info');
+    toast(`已切换 → ${info.model}`, 'ok');
+  } catch (e) { toast(e.message, 'error'); }
+};
+
+async function saveModelConfig() {
+  const model = $('cm-model').value.trim();
+  if (!model) { toast('请填写模型字符串', 'error'); return; }
+  const baseUrl = $('cm-url').value.trim();
+  const apiKey = $('cm-key').value.trim();
+  if (!(await askConfirm(
+    `确认保存以下配置？\n\n模型：${model}\nAPI 地址：${baseUrl || '(沿用当前)'}\nAPI 密钥：${apiKey ? '已填写' : '(沿用当前)'}`,
+    '保存 LLM 配置'))) return;
+  try {
+    const payload = { model };
+    if (baseUrl) payload.baseUrl = baseUrl;
+    if (apiKey) payload.apiKey = apiKey;
+    const r = await post('/api/admin/agent/model', payload);
+    if (!r.ok) { toast(r.error, 'error'); return; }
+    await loadModelConfig();
+    const info = await get('/api/agent/llm-info');
+    toast(`配置已保存，运行态确认: ${info.model} @ ${info.endpoint}`, 'ok', 5000);
+  } catch (e) { toast('保存失败：' + e.message, 'error'); }
+}
+
+// ---------- 客服配置 ----------
+async function loadSupportConfig() {
+  $('support-form').innerHTML = '<div class="loading">加载中…</div>';
+  try {
+    const d = await get('/api/admin/support-config');
+    const hotline = d.hotline || '';
+    const workTime = d.workTime || '';
+    const wechat = d.wechat || '';
+    const faq = d.faq || [];
+
+    $('support-form').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div><label class="lbl">客服热线</label>
+          <input id="sc-hotline" class="btn" style="width:100%;padding:9px;margin-top:4px"
+                 value="${esc(hotline)}" placeholder="400-xxx-xxxx"></div>
+        <div><label class="lbl">工作时间</label>
+          <input id="sc-worktime" class="btn" style="width:100%;padding:9px;margin-top:4px"
+                 value="${esc(workTime)}" placeholder="周一至周日 9:00-21:00"></div>
+        <div><label class="lbl">客服微信号</label>
+          <input id="sc-wechat" class="btn" style="width:100%;padding:9px;margin-top:4px"
+                 value="${esc(wechat)}" placeholder="客服微信"></div>
+      </div>
+
+      <div style="margin-top:16px">
+        <b style="font-size:13px;color:#c8dcc8">常见问题（小程序客服弹窗展示）</b>
+      </div>
+      <div id="sc-faq-list" style="margin-top:10px">
+        ${faq.map((f, i) => `
+          <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:center">
+            <input class="btn sc-faq-q" style="padding:8px" value="${esc(f.q || '')}" placeholder="问题">
+            <input class="btn sc-faq-a" style="padding:8px" value="${esc(f.a || '')}" placeholder="回答">
+            <button class="btn sc-faq-del" style="padding:6px 10px">×</button>
+          </div>`).join('') || '<div style="color:var(--dim2);font-size:12px">暂无，点击下方添加</div>'}
+      </div>
+      <button class="btn" id="sc-add-faq" style="margin-top:6px">+ 添加常见问题</button>
+
+      <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn primary" id="sc-save">保存配置</button>
+      </div>`;
+
+    $('sc-add-faq').onclick = () => {
+      const div = document.createElement('div');
+      div.style = 'display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:center';
+      div.innerHTML = `
+        <input class="btn sc-faq-q" style="padding:8px" placeholder="问题">
+        <input class="btn sc-faq-a" style="padding:8px" placeholder="回答">
+        <button class="btn sc-faq-del" style="padding:6px 10px">×</button>`;
+      div.querySelector('.sc-faq-del').onclick = () => div.remove();
+      $('sc-faq-list').appendChild(div);
+    };
+    document.querySelectorAll('.sc-faq-del').forEach(b => b.onclick = () => b.parentElement.remove());
+
+    $('sc-save').onclick = async () => {
+      const faqItems = [...document.querySelectorAll('#sc-faq-list > div')].map(d => ({
+        q: d.querySelector('.sc-faq-q').value.trim(),
+        a: d.querySelector('.sc-faq-a').value.trim()
+      })).filter(f => f.q && f.a);
+
+      const payload = {
+        hotline: $('sc-hotline').value.trim(),
+        workTime: $('sc-worktime').value.trim(),
+        wechat: $('sc-wechat').value.trim(),
+        faq: faqItems
+      };
+      if (!(await askConfirm('保存后小程序客服弹窗立即更新（下次打开时生效）。确认？', '保存客服配置'))) return;
+      try {
+        const r = await post('/api/admin/support-config', payload);
+        if (!r.ok) { toast(r.error, 'error'); return; }
+        toast('客服配置已保存', 'ok');
+      } catch (e) { toast(e.message, 'error'); }
+    };
+  } catch (e) { showErr($('support-form'), e); }
+}
+
+// ---------- 启动 ----------// ---------- 评价 ----------
+let reviewPage = 1, reviewTotal = 0, reviewSize = 20;
+
+async function loadReviews(page) {
+  reviewPage = page || reviewPage;
+  $('review-list').innerHTML = '<div class="loading">加载中…</div>';
+  try {
+    const st = $('review-status').value;
+    const rt = $('review-rating').value;
+    const qs = `?page=${reviewPage}&size=${reviewSize}`
+      + (st ? `&status=${st}` : '') + (rt ? `&rating=${rt}` : '');
+    const d = await get('/api/admin/reviews' + qs);
+    reviewTotal = d.total;
+    const rows = d.rows || [];
+    const tp = Math.max(1, Math.ceil(reviewTotal / reviewSize));
+    $('review-pageinfo').textContent = `第 ${reviewPage} / ${tp} 页 · 共 ${fmt(reviewTotal)} 条`;
+
+    const C = d.statusCounts || {};
+    $('review-summary').textContent =
+      `待审 ${C.pending || 0} · 通过 ${C.approved || 0} · 拒绝 ${C.rejected || 0}`;
+
+    if (!rows.length) {
+      $('review-list').innerHTML =
+        '<div class="empty">暂无评价<br><span style="font-size:11px">'
+        + '评价表为新建；小程序端提交的评价审核后在此显示</span></div>';
+      return;
+    }
+    const ST = { pending: ['warn','待审核'], approved: ['ok','已通过'], rejected: ['err','已拒绝'] };
+    $('review-list').innerHTML = `
+      <table><thead><tr><th>时间</th><th>商品</th><th>用户</th><th>评分</th>
+        <th>内容</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody>${rows.map(r => {
+        const [cls, txt] = ST[r.status] || ['mute', r.status];
+        return `<tr>
+          <td class="mono">${esc(String(r.created_at||'').replace('T',' ').slice(5,16))}</td>
+          <td>${esc(r.emoji||'')} ${esc(r.product_name||'-')}</td>
+          <td>${esc(r.nickname||'-')}${r.is_anonymous?' <span class="tag mute">匿名</span>':''}</td>
+          <td style="color:var(--warn);white-space:nowrap">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</td>
+          <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              title="${esc(r.content||'')}">${esc(r.content||'-')}</td>
+          <td><span class="tag ${cls}">${txt}</span></td>
+          <td style="white-space:nowrap">
+            <button class="btn" data-rv="${r.id}" data-act="ok">通过</button>
+            <button class="btn" data-rv="${r.id}" data-act="no">拒绝</button>
+            <button class="btn" data-rv="${r.id}" data-act="del">删除</button>
+          </td></tr>`;
+      }).join('')}</tbody></table>`;
+
+    if (isReadOnly()) hideIfReadOnly('#review-list button[data-rv]');
+    $('review-list').querySelectorAll('button[data-rv]').forEach(b => {
+      const id = b.dataset.rv, act = b.dataset.act;
+      b.onclick = () => act === 'del' ? deleteReview(id) : auditReview(id, act === 'ok' ? 'approved' : 'rejected');
+    });
+  } catch (e) { showErr($('review-list'), e); }
+}
+
+async function auditReview(id, status) {
+  const label = status === 'approved' ? '通过' : '拒绝';
+  if (!(await askConfirm(`确认${label}这条评价？${status==='approved'?'\n\n通过后会给用户发放 50 积分。':''}`, `${label}评价`))) return;
+  try {
+    const r = await post('/api/admin/review-audit', { id: Number(id), status });
+    if (!r.ok) { toast('操作失败：' + r.error, 'error'); return; }
+    loadReviews(reviewPage);
+  } catch (e) { toast('操作失败：' + e.message, 'error'); }
+}
+
+async function deleteReview(id) {
+  if (!(await askConfirm('确认删除这条评价？此操作不可恢复。', '删除评价'))) return;
+  try {
+    const r = await post('/api/admin/review-delete', { id: Number(id) });
+    if (!r.ok) { toast('删除失败：' + r.error, 'error'); return; }
+    loadReviews(reviewPage);
+  } catch (e) { toast('删除失败：' + e.message, 'error'); }
+}
+
+$('review-search')?.addEventListener('click', () => loadReviews(1));
+$('review-status')?.addEventListener('change', () => loadReviews(1));
+$('review-rating')?.addEventListener('change', () => loadReviews(1));
+$('review-prev')?.addEventListener('click', () => { if (reviewPage > 1) loadReviews(reviewPage - 1); });
+$('review-next')?.addEventListener('click', () => {
+  const tp = Math.max(1, Math.ceil(reviewTotal / reviewSize));
+  if (reviewPage < tp) loadReviews(reviewPage + 1);
+});
+
+// ---------- 茶友圈 ----------
+let momentPage = 1, momentTotal = 0, momentSize = 20;
+
+async function loadMoments(page) {
+  momentPage = page || momentPage;
+  $('moment-list').innerHTML = '<div class="loading">加载中…</div>';
+  try {
+    const kw = $('moment-kw').value.trim();
+    const qs = `?page=${momentPage}&size=${momentSize}` + (kw ? `&keyword=${encodeURIComponent(kw)}` : '');
+    const d = await get('/api/admin/moments' + qs);
+    momentTotal = d.total;
+    const rows = d.rows || [];
+    const tp = Math.max(1, Math.ceil(momentTotal / momentSize));
+    $('moment-pageinfo').textContent = `第 ${momentPage} / ${tp} 页 · 共 ${fmt(momentTotal)} 条`;
+    $('moment-summary').textContent = `${fmt(momentTotal)} 条动态`;
+
+    if (!rows.length) { $('moment-list').innerHTML = '<div class="empty">暂无动态</div>'; return; }
+    $('moment-list').innerHTML = `
+      <table><thead><tr><th>时间</th><th>用户</th><th>内容</th>
+        <th style="text-align:right">图</th><th style="text-align:right">赞</th>
+        <th style="text-align:right">评论</th><th>操作</th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td class="mono">${esc(String(r.created_at||'').replace('T',' ').slice(5,16))}</td>
+        <td>${esc(r.nickname||'-')}<br><span class="mono">${esc(r.phone||'')}</span></td>
+        <td style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+            title="${esc(r.content||'')}">${esc(r.content||'-')}</td>
+        <td class="num" style="text-align:right">${fmt(r.image_count)}</td>
+        <td class="num" style="text-align:right">${fmt(r.like_count)}</td>
+        <td class="num" style="text-align:right">${fmt(r.comment_count)}</td>
+        <td style="white-space:nowrap">
+          <button class="btn" data-mid="${r.id}">详情</button>
+          <button class="btn" data-mdel="${r.id}">删除</button>
+        </td></tr>`).join('')}</tbody></table>`;
+
+    if (isReadOnly()) hideIfReadOnly('#moment-list button[data-mdel]');
+    $('moment-list').querySelectorAll('button[data-mid]').forEach(b => {
+      b.onclick = () => showMoment(b.dataset.mid);
+    });
+    $('moment-list').querySelectorAll('button[data-mdel]').forEach(b => {
+      b.onclick = () => deleteMoment(b.dataset.mdel);
+    });
+  } catch (e) { showErr($('moment-list'), e); }
+}
+
+async function showMoment(id) {
+  try {
+    const d = await get('/api/admin/moment-detail?id=' + id);
+    if (d.error) { toast(d.error, 'error'); return; }
+    const m = d.moment || {};
+    const comments = d.comments || [];
+    const images = d.images || [];
+    openModal('动态详情', `
+      <div style="line-height:1.9;margin-bottom:12px">
+        <b>${esc(m.nickname||'-')}</b>　<span class="mono">${esc(String(m.created_at||'').replace('T',' ').slice(0,19))}</span>
+      </div>
+      <div style="background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:8px;
+                  padding:14px;line-height:1.9;white-space:pre-wrap;margin-bottom:12px">${esc(m.content||'')}</div>
+      ${images.length ? `<div style="margin-bottom:12px;font-size:12px;color:var(--dim)">
+         图片 ${images.length} 张：${images.map(i=>esc(i.emoji||'')).join(' ')}</div>` : ''}
+      <h3 style="font-size:13px;margin-bottom:8px;color:#c8dcc8">评论 ${comments.length} 条</h3>
+      <div style="max-height:280px;overflow-y:auto">
+        ${comments.map(c => `<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12.5px">
+          <b>${esc(c.nickname||'-')}</b>
+          <span class="mono" style="margin-left:8px;color:var(--dim2)">${esc(String(c.created_at||'').replace('T',' ').slice(5,16))}</span>
+          <button class="btn" style="float:right;padding:2px 8px;font-size:11px"
+            data-cdel="${c.id}">删除</button>
+          <div style="margin-top:4px;color:var(--dim)">${esc(c.content)}</div>
+        </div>`).join('') || '<div class="empty" style="padding:16px">暂无评论</div>'}
+      </div>
+      <div style="margin-top:16px;text-align:right">
+        <button class="btn" onclick="closeModal()">关闭</button>
+      </div>`);
+
+    if (isReadOnly()) hideIfReadOnly('#modal-body button[data-cdel]');
+    $('modal-body').querySelectorAll('button[data-cdel]').forEach(b => {
+      b.onclick = async () => {
+        if (!(await askConfirm('确认删除这条评论？', '删除评论'))) return;
+        try {
+          const r = await post('/api/admin/moment-comment-delete', { id: Number(b.dataset.cdel) });
+          if (!r.ok) { toast(r.error, 'error'); return; }
+          showMoment(id);
+          loadMoments(momentPage);
+        } catch (e) { toast(e.message, 'error'); }
+      };
+    });
+  } catch (e) { toast('加载失败：' + e.message, 'error'); }
+}
+
+async function deleteMoment(id) {
+  if (!(await askConfirm('确认删除这条动态？\n\n其下的评论、点赞、图片会一并删除，不可恢复。', '删除动态'))) return;
+  try {
+    const r = await post('/api/admin/moment-delete', { id: Number(id) });
+    if (!r.ok) { toast('删除失败：' + r.error, 'error'); return; }
+    loadMoments(momentPage);
+  } catch (e) { toast('删除失败：' + e.message, 'error'); }
+}
+
+$('moment-search')?.addEventListener('click', () => loadMoments(1));
+$('moment-kw')?.addEventListener('keydown', e => { if (e.key === 'Enter') loadMoments(1); });
+$('moment-prev')?.addEventListener('click', () => { if (momentPage > 1) loadMoments(momentPage - 1); });
+$('moment-next')?.addEventListener('click', () => {
+  const tp = Math.max(1, Math.ceil(momentTotal / momentSize));
+  if (momentPage < tp) loadMoments(momentPage + 1);
+});
+
+// ---------- 积分 ----------
+let pointsPage = 1, pointsTotal = 0, pointsSize = 20;
+
+const PTYPE = { order:'订单', review:'评价', sign:'签到', share:'分享', refund:'退款', manual:'手工调整' };
+
+async function loadPoints(page) {
+  pointsPage = page || pointsPage;
+  $('points-list').innerHTML = '<div class="loading">加载中…</div>';
+  try {
+    const ty = $('points-type').value;
+    const qs = `?page=${pointsPage}&size=${pointsSize}` + (ty ? `&type=${ty}` : '');
+    const d = await get('/api/admin/points' + qs);
+    pointsTotal = d.total;
+
+    const sum = d.summary || [];
+    $('points-summary').innerHTML = sum.length
+      ? sum.map(s => `
+        <div class="bar">
+          <div class="label">${esc(PTYPE[s.type] || s.type)}</div>
+          <div class="track"><div class="fill" style="width:${Math.max(3,(s.cnt/Math.max(...sum.map(x=>x.cnt)))*100)}%"></div></div>
+          <div class="val">${fmt(s.cnt)} 笔 · ${fmt(s.sum_points)} 分</div>
+        </div>`).join('')
+      : '<div class="empty">暂无积分记录</div>';
+
+    const rows = d.rows || [];
+    const tp = Math.max(1, Math.ceil(pointsTotal / pointsSize));
+    $('points-pageinfo').textContent = `第 ${pointsPage} / ${tp} 页 · 共 ${fmt(pointsTotal)} 条`;
+    $('points-count').textContent = `${fmt(pointsTotal)} 条`;
+
+    if (!rows.length) { $('points-list').innerHTML = '<div class="empty">无匹配记录</div>'; }
+    else {
+      $('points-list').innerHTML = `
+        <table><thead><tr><th>时间</th><th>用户</th><th>类型</th>
+          <th style="text-align:right">变动</th><th style="text-align:right">变动后余额</th>
+          <th>说明</th></tr></thead>
+        <tbody>${rows.map(r => {
+          const p = Number(r.points||0);
+          return `<tr>
+            <td class="mono">${esc(String(r.created_at||'').replace('T',' ').slice(5,16))}</td>
+            <td>${esc(r.nickname||'-')}<br><span class="mono">${esc(r.phone||'')}</span></td>
+            <td><span class="tag ${r.type==='manual'?'warn':'mute'}">${esc(PTYPE[r.type]||r.type)}</span></td>
+            <td class="num" style="text-align:right;color:${p>=0?'var(--accent)':'var(--err)'}">
+              ${p>=0?'+':''}${fmt(p)}</td>
+            <td class="num" style="text-align:right">${fmt(r.balance)}</td>
+            <td style="color:var(--dim)">${esc(r.description||'-')}</td>
+          </tr>`;
+        }).join('')}</tbody></table>`;
+    }
+
+    const users = d.userPoints || [];
+    $('points-users').innerHTML = users.length ? `
+      <table><thead><tr><th>用户</th><th>手机</th><th style="text-align:right">当前积分</th></tr></thead>
+      <tbody>${users.map(u => `<tr>
+        <td>${esc(u.nickname||'-')}</td>
+        <td class="mono">${esc(u.phone||'')}</td>
+        <td class="num" style="text-align:right;color:var(--accent)">${fmt(u.points)}</td>
+      </tr>`).join('')}</tbody></table>` : '<div class="empty">暂无数据</div>';
+  } catch (e) { showErr($('points-list'), e); }
+}
+
+$('points-search')?.addEventListener('click', () => loadPoints(1));
+$('points-type')?.addEventListener('change', () => loadPoints(1));
+$('points-prev')?.addEventListener('click', () => { if (pointsPage > 1) loadPoints(pointsPage - 1); });
+$('points-next')?.addEventListener('click', () => {
+  const tp = Math.max(1, Math.ceil(pointsTotal / pointsSize));
+  if (pointsPage < tp) loadPoints(pointsPage + 1);
+});
+
+// ---------- 优惠券 ----------
+let couponPage = 1, couponTotal = 0, couponSize = 20;
+
+async function loadCoupons(page) {
+  couponPage = page || couponPage;
+  $('coupon-list').innerHTML = '<div class="loading">加载中…</div>';
+  try {
+    const d = await get(`/api/admin/coupons?page=${couponPage}&size=${couponSize}`);
+    couponTotal = d.total;
+    const rows = d.rows || [];
+    const tp = Math.max(1, Math.ceil(couponTotal / couponSize));
+    $('coupon-pageinfo').textContent = `第 ${couponPage} / ${tp} 页 · 共 ${fmt(couponTotal)} 张`;
+    $('coupon-summary').textContent = `${fmt(couponTotal)} 张模板`;
+
+    if (!rows.length) { $('coupon-list').innerHTML = '<div class="empty">暂无优惠券</div>'; return; }
+    $('coupon-list').innerHTML = `
+      <table><thead><tr><th>ID</th><th>名称</th><th>类型</th>
+        <th style="text-align:right">面额</th><th style="text-align:right">门槛</th>
+        <th>有效期</th><th style="text-align:right">发放/领取</th>
+        <th style="text-align:right">兑换码</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody>${rows.map(r => `<tr>
+        <td class="num">${r.id}</td>
+        <td>${esc(r.name)}</td>
+        <td><span class="tag mute">${esc(r.type||'-')}</span></td>
+        <td class="num" style="text-align:right;color:var(--accent)">¥${Number(r.value||0).toFixed(2)}</td>
+        <td class="num" style="text-align:right">¥${Number(r.min_order_amount||0).toFixed(0)}</td>
+        <td class="mono">${esc(String(r.start_time||'').slice(5,10))} ~ ${esc(String(r.end_time||'').slice(5,10))}</td>
+        <td class="num" style="text-align:right">${fmt(r.total_count)}/${fmt(r.received_count)}</td>
+        <td class="num" style="text-align:right">${fmt(r.code_total)}
+          <span style="color:var(--dim2)">（已领 ${fmt(r.code_claimed)}）</span></td>
+        <td><span class="tag ${Number(r.status)===1?'ok':'mute'}">${Number(r.status)===1?'启用':'停用'}</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn" data-codes="${r.id}" data-cname="${esc(r.name)}">
+            兑换码 (${fmt(r.code_total)}/${fmt(r.code_claimed)})</button>
+          <button class="btn" data-cedit="${r.id}">编辑</button>
+          <button class="btn" data-ctoggle="${r.id}" data-cst="${r.status}">
+            ${Number(r.status)===1?'停用':'启用'}</button>
+        </td>
+      </tr>`).join('')}</tbody></table>`;
+
+    if (isReadOnly()) hideIfReadOnly('#coupon-list button[data-cedit], #coupon-list button[data-ctoggle], #coupon-new');
+    $('coupon-list').querySelectorAll('button[data-codes]').forEach(b => {
+      b.onclick = () => showCouponCodes(Number(b.dataset.codes), b.dataset.cname);
+    });
+    $('coupon-list').querySelectorAll('button[data-cedit]').forEach(b => {
+      b.onclick = async () => {
+        try {
+          const dd = await get('/api/admin/coupon-detail?id=' + b.dataset.cedit);
+          if (dd.error) { toast(dd.error, 'error'); return; }
+          showCouponForm(dd.coupon);
+        } catch (e) { toast('加载失败：' + e.message, 'error'); }
+      };
+    });
+    $('coupon-list').querySelectorAll('button[data-ctoggle]').forEach(b => {
+      b.onclick = () => toggleCoupon(Number(b.dataset.ctoggle), Number(b.dataset.cst));
+    });
+  } catch (e) { showErr($('coupon-list'), e); }
+}
+
+$('coupon-prev')?.addEventListener('click', () => { if (couponPage > 1) loadCoupons(couponPage - 1); });
+$('coupon-next')?.addEventListener('click', () => {
+  const tp = Math.max(1, Math.ceil(couponTotal / couponSize));
+  if (couponPage < tp) loadCoupons(couponPage + 1);
+});
+
+// ---------- 兑换码弹窗 ----------
+async function showCouponCodes(couponId, couponName) {
+  try {
+    const d = await get(`/api/admin/coupon-codes?couponId=${couponId}&page=1&size=200`);
+    const rows = d.rows || [];
+    const total = d.total || 0;
+    const claimed = rows.filter(r => r.status === 'claimed').length;
+    const unused = rows.filter(r => r.status === 'unclaimed').length;
+
+    const STATUS = {
+      unclaimed: ['ok', '未兑换'],
+      claimed: ['warn', '已兑换'],
+      used: ['mute', '已使用'],
+      expired: ['mute', '已过期']
+    };
+
+    openModal(`兑换码 · ${couponName}`, `
+      <div class="cards" style="margin-bottom:16px">
+        <div class="card"><div class="k">总数</div><div class="v">${fmt(total)}</div></div>
+        <div class="card"><div class="k">未兑换</div><div class="v" style="color:var(--accent)">${fmt(unused)}</div></div>
+        <div class="card"><div class="k">已兑换</div><div class="v" style="color:var(--warn)">${fmt(claimed)}</div></div>
+      </div>
+
+      <div style="font-size:11.5px;color:var(--dim2);line-height:1.8;margin-bottom:12px">
+        用户在小程序「优惠券 → 口令兑换」输入<b>兑换码</b>即可领取，无需密码。
+        每兑换一次，该券库存减一。
+      </div>
+
+      <div class="scroll-x" style="max-height:340px;overflow-y:auto">
+        <table>
+          <thead><tr><th>#</th><th>兑换码</th><th>状态</th><th>领取人</th><th>领取时间</th></tr></thead>
+          <tbody>${rows.length ? rows.map((r, i) => {
+            const [cls, txt] = STATUS[r.status] || ['mute', r.status];
+            return `<tr>
+              <td class="num">${i + 1}</td>
+              <td class="mono" style="color:var(--accent);user-select:all">${esc(r.code)}</td>
+              <td><span class="tag ${cls}">${txt}</span></td>
+              <td class="mono">${r.user_id ? 'ID ' + r.user_id : '-'}</td>
+              <td class="mono">${esc(String(r.received_time || '').replace('T',' ').slice(0,16)) || '-'}</td>
+            </tr>`;
+          }).join('') : '<tr><td colspan="5" class="empty">还没有生成兑换码</td></tr>'}</tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" id="ccopy">复制全部兑换码</button>
+        <button class="btn primary" id="cgen">补充生成</button>
+        <button class="btn" onclick="closeModal()">关闭</button>
+      </div>
+    `);
+
+    $('ccopy').onclick = () => {
+      const text = rows.map(r => r.code).join('\n');
+      navigator.clipboard?.writeText(text)
+        .then(() => toast(`已复制 ${rows.length} 个兑换码`, 'ok'))
+        .catch(() => toast('复制失败，请手动选择', 'error'));
+    };
+    if (isReadOnly()) hideIfReadOnly('#cgen');
+    $('cgen').onclick = () => genCodes(couponId, couponName);
+  } catch (e) {
+    toast('加载兑换码失败：' + e.message, 'error');
+  }
+}
+
+async function genCodes(couponId, couponName) {
+  const n = await askInput('生成多少个兑换码（1-500）', '10', '补充生成兑换码');
+  if (n === null) return;
+  const count = parseInt(n, 10);
+  if (!count || count < 1 || count > 500) { toast('数量需在 1-500 之间', 'error'); return; }
+  try {
+    const r = await post('/api/admin/coupon-generate', { couponId: Number(couponId), count });
+    if (!r.ok) { toast('生成失败：' + r.error, 'error'); return; }
+    toast(`已生成 ${r.generated} 个兑换码`, 'ok');
+    loadCoupons(couponPage);
+    if (couponName) showCouponCodes(couponId, couponName);
+  } catch (e) { toast('生成失败：' + e.message, 'error'); }
+}
+
+// ---------- 优惠券创建 / 编辑 ----------
+let couponThemes = null;
+
+/** 加载主题下拉（只需一次） */
+async function ensureCouponThemes() {
+  if (couponThemes) return couponThemes;
+  try {
+    const d = await get('/api/admin/product-form-options');
+    couponThemes = d.themes || [];
+  } catch (e) { couponThemes = []; }
+  return couponThemes;
+}
+
+/**
+ * 打开券表单。
+ * @param {object|null} existing 传入则编辑，null 则新建
+ */
+async function showCouponForm(existing) {
+  const themes = await ensureCouponThemes();
+  const isEdit = !!existing;
+  const c = existing || {};
+
+  const today = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const fmtDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const endDefault = new Date(today.getTime() + 30 * 86400000);
+
+  // datetime-local 格式：YYYY-MM-DDTHH:mm（秒可选去掉）
+  const toLocalVal = (t, fallback) => {
+    if (!t) return fallback;
+    let v = String(t).replace('T', 'T').slice(0, 16);   // YYYY-MM-DDTHH:mm
+    return v;
+  };
+  const startVal = toLocalVal(c.start_time, fmtDate(today) + 'T00:00');
+  const endVal = toLocalVal(c.end_time, fmtDate(endDefault) + 'T23:59');
+
+  const locked = isEdit && (Number(c.received_count || 0) > 0 || Number(c.used_count || 0) > 0);
+  const lockAttr = locked ? 'disabled' : '';
+  const typeInit = c.type || 'full';
+
+  openModal(isEdit ? `编辑优惠券 #${c.id}` : '新建优惠券', `
+    ${locked ? `<div class="err-box" style="margin-bottom:14px;background:rgba(232,192,125,.1);
+        border-color:rgba(232,192,125,.35);color:var(--warn)">
+      该券已发放（领取 ${c.received_count||0} / 使用 ${c.used_count||0}），面值与规则已锁定，
+      只能改名称、有效期与状态。</div>` : ''}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <label class="lbl">券名称 *</label>
+        <input id="c-name" class="btn" style="width:100%;padding:9px;margin-top:5px"
+               placeholder="如：双十一满减券" value="${esc(c.name || '')}">
+      </div>
+      <div>
+        <label class="lbl">券类型 *</label>
+        <select id="c-type" class="btn" style="width:100%;padding:9px;margin-top:5px" ${lockAttr}>
+          <option value="full" ${typeInit==='full'?'selected':''}>满减券（减固定金额）</option>
+          <option value="discount" ${typeInit==='discount'?'selected':''}>折扣券（按比例打折）</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="lbl" id="c-value-lbl">减免金额（元）*</label>
+        <input id="c-value" class="btn" style="width:100%;padding:9px;margin-top:5px"
+               type="number" step="0.01" min="0" ${lockAttr}
+               value="${c.value != null ? c.value : ''}"
+               placeholder="${typeInit==='discount' ? '0.85 表示 85 折' : '如 30'}">
+        <div class="hint" id="c-value-hint" style="margin-top:4px;font-size:11px;color:var(--dim2)">
+          ${typeInit==='discount' ? '填 0~1 之间的小数：0.85 = 85 折' : '满减券填写减免的金额'}
+        </div>
+      </div>
+      <div>
+        <label class="lbl">使用门槛（元）</label>
+        <input id="c-min" class="btn" style="width:100%;padding:9px;margin-top:5px"
+               type="number" step="0.01" min="0" ${lockAttr}
+               value="${c.min_order_amount != null ? c.min_order_amount : 0}">
+        <div style="margin-top:4px;font-size:11px;color:var(--dim2)">0 = 无门槛</div>
+      </div>
+
+      <div id="c-max-wrap" style="display:${typeInit==='discount'?'block':'none'}">
+        <label class="lbl">最高抵扣（元）*</label>
+        <input id="c-max" class="btn" style="width:100%;padding:9px;margin-top:5px"
+               type="number" step="0.01" min="0" ${lockAttr}
+               value="${c.max_discount != null ? c.max_discount : ''}" placeholder="如 100">
+        <div style="margin-top:4px;font-size:11px;color:var(--dim2)">折扣券必填，防止大额订单过度让利</div>
+      </div>
+
+      <div>
+        <label class="lbl">发行总量 *</label>
+        <input id="c-total" class="btn" style="width:100%;padding:9px;margin-top:5px"
+               type="number" min="1" value="${c.total_count != null ? c.total_count : 1000}">
+      </div>
+
+      <div>
+        <label class="lbl">关联主题（可选）</label>
+        <select id="c-theme" class="btn" style="width:100%;padding:9px;margin-top:5px" ${lockAttr}>
+          <option value="">通用券（不限主题）</option>
+          ${themes.map(t => `<option value="${t.id}" ${String(c.theme_id)===String(t.id)?'selected':''}>${esc(t.name)}</option>`).join('')}
+        </select>
+      </div>
+
+      <div>
+        <label class="lbl">开始时间 *（精确到分钟）</label>
+        <input id="c-start" class="btn" style="width:100%;padding:9px;margin-top:5px;
+               min-width:260px" type="datetime-local" value="${startVal}" ${lockAttr}>
+      </div>
+      <div>
+        <label class="lbl">结束时间 *（到期后兑换码和领券自动失效）</label>
+        <input id="c-end" class="btn" style="width:100%;padding:9px;margin-top:5px;
+               min-width:260px" type="datetime-local" value="${endVal}" ${lockAttr}>
+      </div>
+    </div>
+
+    <div style="margin-top:14px;display:flex;gap:18px;font-size:12.5px;align-items:center">
+      <label><input type="checkbox" id="c-exclusive" ${Number(c.is_exclusive)===1?'checked':''} ${lockAttr}>
+        专享券（仅限关联主题的商品可用）</label>
+      <label><input type="checkbox" id="c-status" ${Number(c.status)!==0?'checked':''}>
+        立即启用</label>
+    </div>
+
+    <div style="margin-top:10px">
+      <label class="lbl">使用条件描述（留空自动生成）</label>
+      <input id="c-cond" class="btn" style="width:100%;padding:9px;margin-top:5px"
+             placeholder="如：满300减30" ${lockAttr} value="${esc(c.condition || '')}">
+    </div>
+
+    <div style="margin-top:14px;display:grid;grid-template-columns:1fr;gap:10px">
+      ${!isEdit ? `<div>
+        <label class="lbl">同时生成兑换码（数量）</label>
+        <input id="c-codecount" class="btn" style="width:100%;padding:9px;margin-top:5px"
+               type="number" min="0" max="500" value="0" placeholder="0 = 暂不生成">
+        <div style="margin-top:4px;font-size:11px;color:var(--dim2)">
+          填写后创建即生成，不用再点一次；每兑换一次，库存减一
+        </div>
+      </div>` : ''}
+    </div>
+
+    <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end">
+      ${isEdit ? `<button class="btn" style="background:rgba(232,139,139,.15);border-color:rgba(232,139,139,.4);color:var(--err)"
+            id="c-del">删除</button>` : ''}
+      <button class="btn primary" id="c-save">${isEdit ? '保存修改' : '创建优惠券'}</button>
+      <button class="btn" onclick="closeModal()">取消</button>
+    </div>
+  `);
+
+  // 券型切换时动态改标签与显隐
+  const typeSel = $('c-type');
+  const syncType = () => {
+    const t = typeSel.value;
+    $('c-value-lbl').textContent = t === 'discount' ? '折扣率（0~1）*' : '减免金额（元）*';
+    $('c-value').placeholder = t === 'discount' ? '0.85 表示 85 折' : '如 30';
+    $('c-value-hint').textContent = t === 'discount'
+      ? '填 0~1 之间的小数：0.85 = 85 折' : '满减券填写减免的金额';
+    $('c-max-wrap').style.display = t === 'discount' ? 'block' : 'none';
+  };
+  if (typeSel) { typeSel.onchange = syncType; syncType(); }
+
+  $('c-save').onclick = () => saveCoupon(isEdit ? Number(c.id) : null, locked);
+  if (isEdit) $('c-del').onclick = () => deleteCoupon(Number(c.id));
+}
+
+async function saveCoupon(id, locked) {
+  const type = $('c-type').value;
+  const name = $('c-name').value.trim();
+  const rawValue = parseFloat($('c-value').value);
+  const minOrder = parseFloat($('c-min').value) || 0;
+  const maxDiscount = $('c-max').value === '' ? null : parseFloat($('c-max').value);
+  const total = parseInt($('c-total').value, 10);
+  const themeId = $('c-theme').value ? Number($('c-theme').value) : null;
+
+  if (!name) { toast('请填写券名称', 'error'); return; }
+  if (isNaN(rawValue) || rawValue <= 0) { toast('请填写有效的面值', 'error'); return; }
+  if (type === 'discount' && rawValue >= 1) {
+    toast('折扣率必须小于 1。85 折请填 0.85，不是 85', 'error', 5000);
+    return;
+  }
+  if (type === 'discount' && (maxDiscount === null || maxDiscount <= 0)) {
+    toast('折扣券必须填写最高抵扣金额', 'error'); return;
+  }
+  if (type === 'full' && minOrder > 0 && rawValue >= minOrder) {
+    toast('减免金额不能大于等于门槛，否则等于无条件白送', 'error', 5000); return;
+  }
+
+  const payload = {
+    name, type,
+    startTime: $('c-start').value.replace('T', ' '),
+    endTime: $('c-end').value.replace('T', ' '),
+    totalCount: total,
+    status: $('c-status').checked ? 1 : 0,
+    themeId,
+    isExclusive: $('c-exclusive').checked
+  };
+  if (!locked) {
+    Object.assign(payload, {
+      value: rawValue,
+      minOrderAmount: minOrder,
+      maxDiscount,
+      conditionText: $('c-cond').value.trim()
+    });
+  }
+  if (id) payload.id = id;
+
+  // 新建时可选一并生成兑换码
+  const ccInput = $('c-codecount');
+  if (ccInput) {
+    const cc = parseInt(ccInput.value, 10);
+    if (!isNaN(cc) && cc > 0) payload.codeCount = Math.min(cc, 500);
+  }
+
+  try {
+    const r = await post(id ? '/api/admin/coupon-update' : '/api/admin/coupon-create', payload);
+    if (!r.ok) { toast('保存失败：' + r.error, 'error', 6000); return; }
+    closeModal();
+    if (id) {
+      toast('修改已保存', 'ok');
+    } else if (r.codeCount > 0) {
+      toast(`优惠券创建成功（ID ${r.id}），已生成 ${r.codeCount} 个兑换码`, 'ok', 4000);
+    } else {
+      toast(`优惠券创建成功（ID ${r.id}）`, 'ok');
+    }
+    if (r.codeError) toast(r.codeError, 'error', 6000);
+    loadCoupons(id ? couponPage : 1);
+  } catch (e) { toast('保存失败：' + e.message, 'error'); }
+}
+
+async function deleteCoupon(id) {
+  if (!(await askConfirm('确认删除这张优惠券？\n\n已被领取或已生成兑换码的券不能删除，只能停用。', '删除优惠券'))) return;
+  try {
+    const r = await post('/api/admin/coupon-delete', { id });
+    if (!r.ok) { toast(r.error, 'error', 6000); return; }
+    closeModal();
+    toast('已删除', 'ok');
+    loadCoupons(1);
+  } catch (e) { toast('删除失败：' + e.message, 'error'); }
+}
+
+async function toggleCoupon(id, curStatus) {
+  const target = curStatus === 1 ? 0 : 1;
+  try {
+    const r = await post('/api/admin/coupon-toggle', { id, status: target });
+    if (!r.ok) { toast(r.error, 'error'); return; }
+    toast(target === 1 ? '已启用' : '已停用', 'ok');
+    loadCoupons(couponPage);
+  } catch (e) { toast('操作失败：' + e.message, 'error'); }
+}
+
+$('coupon-new')?.addEventListener('click', () => showCouponForm(null));
+
+// ---------- 启动 ----------
+
+
+
+
+
+
+
+
+
+
+(async function boot() {
+  // 读取当前身份
+  try {
+    const st = await fetch('/api/admin/auth-status', { headers: authHeaders() }).then(r => r.json());
+    if (st.authEnabled && !st.loggedIn) {
+      localStorage.removeItem('adminToken');
+      location.href = '/admin-login.html';
+      return;
+    }
+    CURRENT_ROLE = st.role || (st.authEnabled ? 'viewer' : 'admin');
+    localStorage.setItem('adminRole', CURRENT_ROLE);
+    $('whoami').innerHTML = st.authEnabled
+      ? `<b>${esc(st.username || '-')}</b> · ${CURRENT_ROLE === 'admin' ? '读写' : '只读'}`
+      : '未启用鉴权';
+  } catch (e) { /* 状态查询失败时按默认继续 */ }
+
+  await checkHealth();
+  loadDash();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>漫思茶 · 运营管理后台 · 登录</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: linear-gradient(160deg, #0f1b17 0%, #16281f 55%, #1d3328 100%);
+    color: #e8f0ea; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .box {
+    width: 360px; padding: 34px 32px;
+    background: rgba(255,255,255,.045);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 14px;
+  }
+  h1 { font-size: 19px; color: #d8e8c8; margin-bottom: 6px; }
+  .sub { font-size: 12px; color: #7d9488; margin-bottom: 26px; }
+  label { display: block; font-size: 12px; color: #9fb8a8; margin-bottom: 8px; }
+  input {
+    width: 100%; padding: 11px 14px; border-radius: 9px; font-size: 14px;
+    border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.06);
+    color: #e8f0ea; outline: none; font-family: inherit;
+  }
+  input:focus { border-color: #8fd694; }
+  button {
+    width: 100%; margin-top: 20px; padding: 12px; border: none; border-radius: 9px;
+    background: #2f6e46; color: #fff; font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  button:hover { background: #3a8455; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .msg { margin-top: 14px; font-size: 12px; min-height: 18px; }
+  .err { color: #e88b8b; }
+  .ok { color: #8fd694; }
+  .hint { margin-top: 22px; font-size: 11px; color: #5f7368; line-height: 1.7; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>漫思茶 · 运营管理后台</h1>
+  <div class="sub">请输入账号与密码登录</div>
+
+  <div id="form-area">
+    <label for="user">账号</label>
+    <input id="user" type="text" placeholder="请输入账号" autocomplete="username"
+           style="margin-bottom:14px">
+    <label for="pw">密码</label>
+    <input id="pw" type="password" placeholder="请输入密码" autocomplete="current-password">
+    <button id="btn">登 录</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div id="noauth" style="display:none">
+    <div class="msg ok">当前未启用登录校验（ADMIN_USERS 未配置），可直接进入。</div>
+    <button id="btn-skip">进入后台</button>
+  </div>
+
+  <div class="hint" id="hint"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const API = '';
+
+async function checkStatus() {
+  try {
+    const r = await fetch(API + '/api/admin/auth-status');
+    const d = await r.json();
+    if (!d.authEnabled) {
+      $('form-area').style.display = 'none';
+      $('noauth').style.display = 'block';
+      $('btn-skip').onclick = () => location.href = '/admin.html';
+      return;
+    }
+    if (d.loggedIn && localStorage.getItem('adminToken')) {
+      location.href = '/admin.html';
+      return;
+    }
+    $('hint').innerHTML = '账号通过环境变量 <code>ADMIN_USERS</code> 配置，格式 <code>用户名:密码:角色</code>。<br>'
+      + '角色：<code>admin</code> 可读写，<code>viewer</code> 只读。令牌 8 小时自动过期。';
+    $('user').focus();
+  } catch (e) {
+    $('msg').innerHTML = '<span class="err">无法连接后台服务：' + e.message + '</span>';
+  }
+}
+
+async function doLogin() {
+  const user = $('user').value.trim();
+  const pw = $('pw').value;
+  if (!user) { $('msg').innerHTML = '<span class="err">请输入账号</span>'; $('user').focus(); return; }
+  if (!pw) { $('msg').innerHTML = '<span class="err">请输入密码</span>'; $('pw').focus(); return; }
+  $('btn').disabled = true;
+  $('btn').textContent = '登录中…';
+  $('msg').textContent = '';
+  try {
+    const r = await fetch(API + '/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pw })
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      $('msg').innerHTML = '<span class="err">' + (d.error || '登录失败') + '</span>';
+      $('btn').disabled = false;
+      $('btn').textContent = '登 录';
+      $('pw').select();
+      return;
+    }
+    localStorage.setItem('adminToken', d.token);
+    localStorage.setItem('adminUser', d.username || user);
+    localStorage.setItem('adminRole', d.role || 'viewer');
+    $('msg').innerHTML = '<span class="ok">登录成功（' + (d.role === 'admin' ? '读写' : '只读')
+      + '），正在进入…</span>';
+    setTimeout(() => location.href = '/admin.html', 400);
+  } catch (e) {
+    $('msg').innerHTML = '<span class="err">登录请求失败：' + e.message + '</span>';
+    $('btn').disabled = false;
+    $('btn').textContent = '登 录';
+  }
+}
+
+$('btn').onclick = doLogin;
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+$('user').addEventListener('keydown', e => { if (e.key === 'Enter') $('pw').focus(); });
+checkStatus();
+</script>
+</body>
+</html>

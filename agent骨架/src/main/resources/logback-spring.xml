@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  agent-service 日志配置（2026-10-23 新增）
+
+  为什么必须加这个文件：
+    原工程 resources 下只有 application.yaml 与 static，**没有 logback 配置**，
+    日志完全靠 run-agent-service.bat 里的 `> logs\agent-service.log` 重定向。
+    重定向没有任何切割策略 —— 文件只增不减：
+      · 历史文件 agent-service-cc8ee79.log 已涨到 30MB；
+      · MQ 未启动时消费者每 5 秒重连一次，实测约 1.5MB/小时、约 37MB/天；
+      · C 盘写满后 8080/8081 会同时写日志失败，表现为「服务莫名不可用」。
+
+  现在的策略：
+    · 单文件 100MB 切分，按天归档并 gzip 压缩；
+    · 保留 7 天，总量上限 2GB；
+    · 输出目录可用环境变量 LOG_DIR 覆盖，默认 D:/dev-env/logs。
+-->
+<configuration>
+
+    <property name="LOG_DIR" value="${LOG_DIR:-D:/dev-env/logs}"/>
+    <property name="PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"/>
+
+    <appender name="ROLLING_FILE"
+              class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <!-- 注意：故意不写 ${LOG_DIR}/agent-service.log，
+             避免与 bat 的 stdout 重定向写同一个文件（Windows 下双句柄会互相截断）。 -->
+        <file>${LOG_DIR}/agent-app.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/agent-app.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>2GB</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 控制台保留：本地直接 java -jar 时仍能看到输出 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 第三方框架降噪：这些包在 DEBUG 下会把每轮 HTTP 请求都打出来 -->
+    <logger name="org.apache.ibatis" level="WARN"/>
+    <logger name="org.mybatis" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+    <logger name="feign" level="INFO"/>
+    <logger name="org.springframework.amqp" level="WARN"/>
+
+    <root level="INFO">
+        <appender-ref ref="ROLLING_FILE"/>
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>

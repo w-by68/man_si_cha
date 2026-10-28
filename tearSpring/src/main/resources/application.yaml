@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: tearSpring   # 服务名：agent-service 的 TearSpringClient 按此名经 Nacos 发现调用
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/db_tear?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:123456}
+  data:
+    redis:
+      open: true
+      database: 1
+      host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
+      port: 6379
+      password: ${REDIS_PASSWORD:}
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:127.0.0.1:8848}
+        namespace: public
+        group: DEFAULT_GROUP
+
+# 健康检查（Nacos 探活 / Docker HEALTHCHECK）
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+# mybatis-plus+`  `
+mybatis-plus:
+#  configuration:
+#    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  type-aliases-package: com.guchen.pojo
+  global-config:
+    db-config:
+      logic-delete-field: isvalid # 逻辑删除字段
+      id-type: auto # 主键自增
+      logic-delete-value: "N"  # 逻辑已删除默认值
+      logic-not-delete-value: "Y"  # 逻辑未删除默认值
+
+
+#jwt 配置
+jwt:
+  token:
+    tokenExpiration: 120  # 有效期（分钟）
+    # 签名密钥必须由环境变量注入：硬编码进仓库等于公开，任何人都能据此伪造 token。
+    # 生产部署务必设置 JWT_TOKEN_KEY（建议 32 位以上随机串）。
+    tokenSignKey: ${JWT_TOKEN_KEY:dev-only-change-me}
